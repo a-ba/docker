@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/dotcloud/docker/archive"
 	"github.com/dotcloud/docker/daemon"
+	"github.com/dotcloud/docker/pkg/mount"
 	"github.com/dotcloud/docker/nat"
 	"github.com/dotcloud/docker/registry"
 	"github.com/dotcloud/docker/runconfig"
@@ -28,8 +29,12 @@ var (
 	ErrDockerfileEmpty = errors.New("Dockerfile cannot be empty")
 )
 
+type Context interface {
+	GetSums() map[string]string
+}
+
 type BuildFile interface {
-	Build(io.Reader) (string, error)
+	Build(io.Reader, string) (string, error)
 	CmdFrom(string) error
 	CmdRun(string) error
 }
@@ -43,7 +48,7 @@ type buildFile struct {
 	config     *runconfig.Config
 
 	contextPath string
-	context     *utils.TarSum
+	context     Context
 
 	verbose      bool
 	utilizeCache bool
@@ -462,7 +467,7 @@ func (b *buildFile) addContext(container *daemon.Container, orig, dest string, r
 }
 
 func (b *buildFile) CmdAdd(args string) error {
-	if b.context == nil {
+	if b.contextPath == "" {
 		return fmt.Errorf("No context given. Impossible to use ADD")
 	}
 	tmp := strings.SplitN(args, " ", 2)
@@ -730,25 +735,57 @@ func (b *buildFile) commit(id string, autoCmd []string, comment string) error {
 // Long lines can be split with a backslash
 var lineContinuation = regexp.MustCompile(`\s*\\\s*\n`)
 
-func (b *buildFile) Build(context io.Reader) (string, error) {
+func (b *buildFile) Build(context io.Reader, bindContext string) (string, error) {
 	tmpdirPath, err := ioutil.TempDir("", "docker-build")
 	if err != nil {
 		return "", err
 	}
 
-	decompressedStream, err := archive.DecompressStream(context)
-	if err != nil {
-		return "", err
-	}
-
-	b.context = &utils.TarSum{Reader: decompressedStream, DisableCompression: true}
-	if err := archive.Untar(b.context, tmpdirPath, nil); err != nil {
-		return "", err
-	}
 	defer os.RemoveAll(tmpdirPath)
 
-	b.contextPath = tmpdirPath
-	filename := path.Join(tmpdirPath, "Dockerfile")
+	if context != nil {
+		// decompress the uploaded context
+		decompressedStream, err := archive.DecompressStream(context)
+		if err != nil {
+			return "", err
+		}
+
+		tarSum := &utils.TarSum{Reader: decompressedStream, DisableCompression: true}
+		b.context = tarSum
+		if err := archive.Untar(tarSum, tmpdirPath, nil); err != nil {
+			return "", err
+		}
+
+		b.contextPath = tmpdirPath
+	} else {
+		// bind the context
+		//TODO: ensure bind_path is absolute
+		//TODO: ensure client is root
+
+		// This is a read-only bind, but we use aufs to allow writing temporary data
+		diffPath := filepath.Join(tmpdirPath, "diff")
+		mntPath  := filepath.Join(tmpdirPath, "mnt")
+
+		if err := os.Mkdir(diffPath, 0755) ; err != nil {
+			return "", err
+		}
+		if err := os.Mkdir(mntPath, 0755) ; err != nil {
+			return "", err
+		}
+
+		err := mount.ForceMount("none", mntPath, "aufs",
+			fmt.Sprintf("br:%s=rw:%s=ro", diffPath, bindContext))
+		if err != nil {
+			return "", err
+		}
+		//TODO handle errors ?
+		defer mount.ForceUnmount(mntPath)
+
+		b.context = utils.NewDirSum(mntPath)
+		b.contextPath = mntPath
+	}
+
+	filename := path.Join(b.contextPath, "Dockerfile")
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return "", fmt.Errorf("Can't build a directory with no Dockerfile")
 	}

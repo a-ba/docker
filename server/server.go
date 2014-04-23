@@ -448,6 +448,7 @@ func (srv *Server) Build(job *engine.Job) engine.Status {
 		suppressOutput = job.GetenvBool("q")
 		noCache        = job.GetenvBool("nocache")
 		rm             = job.GetenvBool("rm")
+		bindContext    = job.Getenv("bindcontext")
 		configFile     = &registry.ConfigFile{}
 		tag            string
 		context        io.ReadCloser
@@ -455,7 +456,13 @@ func (srv *Server) Build(job *engine.Job) engine.Status {
 	job.GetenvJson("auth", configFile)
 	repoName, tag = utils.ParseRepositoryTag(repoName)
 
-	if remoteURL == "" {
+	if bindContext != "" {
+		if remoteURL != "" {
+			return job.Errorf("Error: remote and bindcontext cannot be used together")
+		}
+		context = nil
+
+	} else if remoteURL == "" {
 		context = ioutil.NopCloser(job.Stdin)
 	} else if utils.IsGIT(remoteURL) {
 		if !strings.HasPrefix(remoteURL, "git://") {
@@ -492,7 +499,9 @@ func (srv *Server) Build(job *engine.Job) engine.Status {
 		}
 		context = c
 	}
-	defer context.Close()
+	if context != nil {
+		defer context.Close()
+	}
 
 	sf := utils.NewStreamFormatter(job.GetenvBool("json"))
 	b := NewBuildFile(srv,
@@ -505,7 +514,7 @@ func (srv *Server) Build(job *engine.Job) engine.Status {
 			StreamFormatter: sf,
 		},
 		!suppressOutput, !noCache, rm, job.Stdout, sf, configFile)
-	id, err := b.Build(context)
+	id, err := b.Build(context, bindContext)
 	if err != nil {
 		return job.Error(err)
 	}
