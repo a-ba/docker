@@ -5,20 +5,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/docker/docker/daemon/execdriver"
 	"github.com/docker/docker/pkg/units"
 )
 
 type State struct {
 	sync.Mutex
-	Running    bool
-	Paused     bool
-	Restarting bool
-	Pid        int
-	ExitCode   int
-	Error      string // contains last known error when starting the container
-	StartedAt  time.Time
-	FinishedAt time.Time
-	waitChan   chan struct{}
+	Running           bool
+	Paused            bool
+	Restarting        bool
+	OOMKilled         bool
+	removalInProgress bool // Not need for this to be persistent on disk.
+	Dead              bool
+	Pid               int
+	ExitCode          int
+	Error             string // contains last known error when starting the container
+	StartedAt         time.Time
+	FinishedAt        time.Time
+	waitChan          chan struct{}
 }
 
 func NewState() *State {
@@ -40,6 +44,14 @@ func (s *State) String() string {
 		return fmt.Sprintf("Up %s", units.HumanDuration(time.Now().UTC().Sub(s.StartedAt)))
 	}
 
+	if s.removalInProgress {
+		return "Removal In Progress"
+	}
+
+	if s.Dead {
+		return "Dead"
+	}
+
 	if s.FinishedAt.IsZero() {
 		return ""
 	}
@@ -58,6 +70,11 @@ func (s *State) StateString() string {
 		}
 		return "running"
 	}
+
+	if s.Dead {
+		return "dead"
+	}
+
 	return "exited"
 }
 
@@ -149,25 +166,26 @@ func (s *State) setRunning(pid int) {
 	s.waitChan = make(chan struct{})
 }
 
-func (s *State) SetStopped(exitCode int) {
+func (s *State) SetStopped(exitStatus *execdriver.ExitStatus) {
 	s.Lock()
-	s.setStopped(exitCode)
+	s.setStopped(exitStatus)
 	s.Unlock()
 }
 
-func (s *State) setStopped(exitCode int) {
+func (s *State) setStopped(exitStatus *execdriver.ExitStatus) {
 	s.Running = false
 	s.Restarting = false
 	s.Pid = 0
 	s.FinishedAt = time.Now().UTC()
-	s.ExitCode = exitCode
+	s.ExitCode = exitStatus.ExitCode
+	s.OOMKilled = exitStatus.OOMKilled
 	close(s.waitChan) // fire waiters for stop
 	s.waitChan = make(chan struct{})
 }
 
 // SetRestarting is when docker hanldes the auto restart of containers when they are
 // in the middle of a stop and being restarted again
-func (s *State) SetRestarting(exitCode int) {
+func (s *State) SetRestarting(exitStatus *execdriver.ExitStatus) {
 	s.Lock()
 	// we should consider the container running when it is restarting because of
 	// all the checks in docker around rm/stop/etc
@@ -175,7 +193,8 @@ func (s *State) SetRestarting(exitCode int) {
 	s.Restarting = true
 	s.Pid = 0
 	s.FinishedAt = time.Now().UTC()
-	s.ExitCode = exitCode
+	s.ExitCode = exitStatus.ExitCode
+	s.OOMKilled = exitStatus.OOMKilled
 	close(s.waitChan) // fire waiters for stop
 	s.waitChan = make(chan struct{})
 	s.Unlock()
@@ -212,4 +231,26 @@ func (s *State) IsPaused() bool {
 	res := s.Paused
 	s.Unlock()
 	return res
+}
+
+func (s *State) SetRemovalInProgress() error {
+	s.Lock()
+	defer s.Unlock()
+	if s.removalInProgress {
+		return fmt.Errorf("Status is already RemovalInProgress")
+	}
+	s.removalInProgress = true
+	return nil
+}
+
+func (s *State) ResetRemovalInProgress() {
+	s.Lock()
+	s.removalInProgress = false
+	s.Unlock()
+}
+
+func (s *State) SetDead() {
+	s.Lock()
+	s.Dead = true
+	s.Unlock()
 }

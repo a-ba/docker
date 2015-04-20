@@ -2,11 +2,11 @@ page_title: Registry API
 page_description: API Documentation for Docker Registry
 page_keywords: API, Docker, index, registry, REST, documentation
 
-# Docker Registry API
+# Docker Registry API v1
 
 ## Introduction
 
- - This is the REST API for the Docker Registry
+ - This is the REST API for the Docker Registry 1.0
  - It stores the images and the graph for a set of repositories
  - It does not have user accounts data
  - It has no notion of user accounts or authorization
@@ -14,37 +14,37 @@ page_keywords: API, Docker, index, registry, REST, documentation
    service using tokens
  - It supports different storage backends (S3, cloud files, local FS)
  - It doesn't have a local database
- - It will be open-sourced at some point
+ - The registry is open source: [Docker Registry](https://github.com/docker/docker-registry)
 
-We expect that there will be multiple registries out there. To help to
+ We expect that there will be multiple registries out there. To help to
 grasp the context, here are some examples of registries:
 
  - **sponsor registry**: such a registry is provided by a third-party
    hosting infrastructure as a convenience for their customers and the
-   docker community as a whole. Its costs are supported by the third
+   Docker community as a whole. Its costs are supported by the third
    party, but the management and operation of the registry are
-   supported by dotCloud. It features read/write access, and delegates
+   supported by Docker. It features read/write access, and delegates
    authentication and authorization to the Index.
  - **mirror registry**: such a registry is provided by a third-party
    hosting infrastructure but is targeted at their customers only. Some
    mechanism (unspecified to date) ensures that public images are
    pulled from a sponsor registry to the mirror registry, to make sure
-   that the customers of the third-party provider can “docker pull”
+   that the customers of the third-party provider can `docker pull`
    those images locally.
  - **vendor registry**: such a registry is provided by a software
-   vendor, who wants to distribute docker images. It would be operated
+   vendor, who wants to distribute Docker images. It would be operated
    and managed by the vendor. Only users authorized by the vendor would
    be able to get write access. Some images would be public (accessible
    for anyone), others private (accessible only for authorized users).
    Authentication and authorization would be delegated to the Index.
-   The goal of vendor registries is to let someone do “docker pull
-   basho/riak1.3” and automatically push from the vendor registry
-   (instead of a sponsor registry); i.e. get all the convenience of a
+   The goal of vendor registries is to let someone do `docker pull
+   basho/riak1.3` and automatically push from the vendor registry
+   (instead of a sponsor registry); i.e., get all the convenience of a
    sponsor registry, while retaining control on the asset distribution.
  - **private registry**: such a registry is located behind a firewall,
    or protected by an additional security layer (HTTP authorization,
    SSL client-side certificates, IP address authorization...). The
-   registry is operated by a private entity, outside of dotCloud's
+   registry is operated by a private entity, outside of Docker's
    control. It can optionally delegate additional authorization to the
    Index, but it is not mandatory.
 
@@ -52,7 +52,7 @@ grasp the context, here are some examples of registries:
 > Mirror registries and private registries which do not use the Index
 > don't even need to run the registry code. They can be implemented by any
 > kind of transport implementing HTTP GET and PUT. Read-only registries
-> can be powered by a simple static HTTP server.
+> can be powered by a simple static HTTPS server.
 
 > **Note**:
 > The latter implies that while HTTP is the protocol of choice for a registry,
@@ -60,12 +60,19 @@ grasp the context, here are some examples of registries:
 >
 >  - HTTP with GET (and PUT for read-write registries);
 >  - local mount point;
->  - remote docker addressed through SSH.
+>  - remote Docker addressed through SSH.
 
-The latter would only require two new commands in docker, e.g.,
+The latter would only require two new commands in Docker, e.g.,
 `registryget` and `registryput`, wrapping access to the local filesystem
 (and optionally doing consistency checks). Authentication and authorization
 are then delegated to SSH (e.g., with public keys).
+
+> **Note**:
+> Private registry servers that expose an HTTP endpoint need to be secured with
+> TLS (preferably TLSv1.2, but at least TLSv1.0). Make sure to put the CA
+> certificate at /etc/docker/certs.d/my.registry.com:5000/ca.crt on the Docker
+> host, so that the daemon can securely access the private registry.
+> Support for SSLv3 and lower is not available due to security issues.
 
 The default namespace for a private repository is `library`.
 
@@ -507,9 +514,15 @@ Search the Index given a search term. It accepts
 
 **Example request**:
 
-        GET /v1/search?q=search_term HTTP/1.1
+        GET /v1/search?q=search_term&page=1&n=25 HTTP/1.1
         Host: index.docker.io
         Accept: application/json
+
+Query Parameters:
+
+- **q** – what you want to search for
+- **n** - number of results you want returned per page (default: 25, min:1, max:100)
+- **page** - page number of results
 
 **Example response**:
 
@@ -517,18 +530,25 @@ Search the Index given a search term. It accepts
         Vary: Accept
         Content-Type: application/json
 
-        {"query":"search_term",
+        {"num_pages": 1,
           "num_results": 3,
           "results" : [
              {"name": "ubuntu", "description": "An ubuntu image..."},
              {"name": "centos", "description": "A centos image..."},
              {"name": "fedora", "description": "A fedora image..."}
-           ]
+           ],
+          "page_size": 25,
+          "query":"search_term",
+          "page": 1
          }
 
-Query Parameters:
-
-- **q** – what you want to search for
+Response Items:
+- **num_pages** - Total number of pages returned by query
+- **num_results** - Total number of results returned by query
+- **results** - List of results for the current page
+- **page_size** - How many results returned per page
+- **query** - Your search term
+- **page** - Current page number
 
 Status Codes:
 

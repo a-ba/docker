@@ -47,7 +47,7 @@ RUN echo "Z"`,
 
 	out, exitCode, err := runCommandWithOutput(exec.Command(dockerBinary, "history", "testbuildhistory"))
 	if err != nil || exitCode != 0 {
-		t.Fatal("failed to get image history: %s, %v", out, err)
+		t.Fatalf("failed to get image history: %s, %v", out, err)
 	}
 
 	actualValues := strings.Split(out, "\n")[1:27]
@@ -71,7 +71,7 @@ func TestHistoryExistentImage(t *testing.T) {
 	if err != nil || exitCode != 0 {
 		t.Fatal("failed to get image history")
 	}
-	logDone("history - history on existent image must not fail")
+	logDone("history - history on existent image must pass")
 }
 
 func TestHistoryNonExistentImage(t *testing.T) {
@@ -80,5 +80,5 @@ func TestHistoryNonExistentImage(t *testing.T) {
 	if err == nil || exitCode == 0 {
 		t.Fatal("history on a non-existent image didn't result in a non-zero exit status")
 	}
-	logDone("history - history on non-existent image must fail")
+	logDone("history - history on non-existent image must pass")
 }

@@ -1,6 +1,6 @@
 % DOCKER(1) Docker User Manuals
 % Docker Community
-% JUNE 2014
+% FEBRUARY 2015
 # NAME
 docker-ps - List containers
 
@@ -8,6 +8,7 @@ docker-ps - List containers
 **docker ps**
 [**-a**|**--all**[=*false*]]
 [**--before**[=*BEFORE*]]
+[**--help**]
 [**-f**|**--filter**[=*[]*]]
 [**-l**|**--latest**[=*false*]]
 [**-n**[=*-1*]]
@@ -29,9 +30,16 @@ the running containers.
 **--before**=""
    Show only container created before Id or Name, include non-running ones.
 
+**--help**
+  Print usage statement
+
 **-f**, **--filter**=[]
    Provide filter values. Valid filters:
                           exited=<int> - containers with exit code of <int>
+                          label=<key> or label=<key>=<value>
+                          status=(restarting|running|paused|exited)
+                          name=<string> - container's name
+                          id=<ID> - container's ID
 
 **-l**, **--latest**=*true*|*false*
    Show only the latest created container, include non-running ones. The default is *false*.
@@ -46,7 +54,7 @@ the running containers.
    Only display numeric IDs. The default is *false*.
 
 **-s**, **--size**=*true*|*false*
-   Display sizes. The default is *false*.
+   Display total file sizes. The default is *false*.
 
 **--since**=""
    Show only containers created since Id or Name, include non-running ones.
@@ -69,8 +77,15 @@ the running containers.
     c1d3b0166030
     41d50ecd2f57
 
+# Display only IDs of all containers that have the name `determined_torvalds`
+
+    # docker ps -a -q --filter=name=determined_torvalds
+    c1d3b0166030
+
 # HISTORY
 April 2014, Originally compiled by William Henry (whenry at redhat dot com)
 based on docker.com source material and internal work.
 June 2014, updated by Sven Dowideit <SvenDowideit@home.org.au>
 August 2014, updated by Sven Dowideit <SvenDowideit@home.org.au>
+November 2014, updated by Sven Dowideit <SvenDowideit@home.org.au>
+February 2015, updated by André Martins <martins@noironetworks.com>

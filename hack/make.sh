@@ -44,16 +44,16 @@ echo
 DEFAULT_BUNDLES=(
 	validate-dco
 	validate-gofmt
+	validate-toml
 
 	binary
 
 	test-unit
-	test-integration
 	test-integration-cli
+	test-docker-py
 
 	dynbinary
-	dyntest-unit
-	dyntest-integration
+	test-integration
 
 	cover
 	cross
@@ -94,17 +94,26 @@ if [ -z "$DOCKER_CLIENTONLY" ]; then
 	DOCKER_BUILDTAGS+=" daemon"
 fi
 
+if [ "$DOCKER_EXECDRIVER" = 'lxc' ]; then
+	DOCKER_BUILDTAGS+=' test_no_exec'
+fi
+
 # Use these flags when compiling the tests and final binary
-LDFLAGS='
-	-w
-	-X '$DOCKER_PKG'/dockerversion.GITCOMMIT "'$GITCOMMIT'"
-	-X '$DOCKER_PKG'/dockerversion.VERSION "'$VERSION'"
-'
+
+IAMSTATIC='true'
+source "$(dirname "$BASH_SOURCE")/make/.go-autogen"
+LDFLAGS='-w'
+
 LDFLAGS_STATIC='-linkmode external'
+# Cgo -H windows is incompatible with -linkmode external.
+if [ "$(go env GOOS)" == 'windows' ]; then
+	LDFLAGS_STATIC=''
+fi
 EXTLDFLAGS_STATIC='-static'
 # ORIG_BUILDFLAGS is necessary for the cross target which cannot always build
 # with options like -race.
-ORIG_BUILDFLAGS=( -a -tags "netgo static_build $DOCKER_BUILDTAGS" )
+ORIG_BUILDFLAGS=( -a -tags "netgo static_build $DOCKER_BUILDTAGS" -installsuffix netgo )
+# see https://github.com/golang/go/issues/9369#issuecomment-69864440 for why -installsuffix is necessary here
 BUILDFLAGS=( $BUILDFLAGS "${ORIG_BUILDFLAGS[@]}" )
 # Test timeout.
 : ${TIMEOUT:=30m}
@@ -115,7 +124,6 @@ TESTFLAGS+=" -test.timeout=${TIMEOUT}"
 EXTLDFLAGS_STATIC_DOCKER="$EXTLDFLAGS_STATIC -lpthread -Wl,--unresolved-symbols=ignore-in-object-files"
 LDFLAGS_STATIC_DOCKER="
 	$LDFLAGS_STATIC
-	-X $DOCKER_PKG/dockerversion.IAMSTATIC true
 	-extldflags \"$EXTLDFLAGS_STATIC_DOCKER\"
 "
 
@@ -165,8 +173,28 @@ go_test_dir() {
 		export DEST
 		echo '+ go test' $TESTFLAGS "${DOCKER_PKG}${dir#.}"
 		cd "$dir"
-		go test ${testcover[@]} -ldflags "$LDFLAGS" "${BUILDFLAGS[@]}" $TESTFLAGS
+		test_env go test ${testcover[@]} -ldflags "$LDFLAGS" "${BUILDFLAGS[@]}" $TESTFLAGS
 	)
+}
+test_env() {
+	# use "env -i" to tightly control the environment variables that bleed into the tests
+	env -i \
+		DEST="$DEST" \
+		DOCKER_EXECDRIVER="$DOCKER_EXECDRIVER" \
+		DOCKER_GRAPHDRIVER="$DOCKER_GRAPHDRIVER" \
+		DOCKER_HOST="$DOCKER_HOST" \
+		GOPATH="$GOPATH" \
+		HOME="$DEST/fake-HOME" \
+		PATH="$PATH" \
+		TEST_DOCKERINIT_PATH="$TEST_DOCKERINIT_PATH" \
+		"$@"
+}
+
+# a helper to provide ".exe" when it's appropriate
+binary_extension() {
+	if [ "$(go env GOOS)" = 'windows' ]; then
+		echo -n '.exe'
+	fi
 }
 
 # This helper function walks the current directory looking for directories
@@ -175,15 +203,15 @@ go_test_dir() {
 find_dirs() {
 	find . -not \( \
 		\( \
-			-wholename './vendor' \
-			-o -wholename './integration' \
-			-o -wholename './integration-cli' \
-			-o -wholename './contrib' \
-			-o -wholename './pkg/mflag/example' \
-			-o -wholename './.git' \
-			-o -wholename './bundles' \
-			-o -wholename './docs' \
-			-o -wholename './pkg/libcontainer/nsinit' \
+			-path './vendor/*' \
+			-o -path './integration/*' \
+			-o -path './integration-cli/*' \
+			-o -path './contrib/*' \
+			-o -path './pkg/mflag/example/*' \
+			-o -path './.git/*' \
+			-o -path './bundles/*' \
+			-o -path './docs/*' \
+			-o -path './pkg/libcontainer/nsinit/*' \
 		\) \
 		-prune \
 	\) -name "$1" -print0 | xargs -0n1 dirname | sort -u
@@ -215,7 +243,7 @@ bundle() {
 	bundle=$(basename $bundlescript)
 	echo "---> Making bundle: $bundle (in bundles/$VERSION/$bundle)"
 	mkdir -p bundles/$VERSION/$bundle
-	source $bundlescript $(pwd)/bundles/$VERSION/$bundle
+	source "$bundlescript" "$(pwd)/bundles/$VERSION/$bundle"
 }
 
 main() {

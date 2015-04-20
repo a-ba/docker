@@ -12,10 +12,10 @@ type Config struct {
 	Hostname        string
 	Domainname      string
 	User            string
-	Memory          int64  // Memory limit (in bytes)
-	MemorySwap      int64  // Total memory usage (memory + swap); set `-1' to disable swap
-	CpuShares       int64  // CPU shares (relative weight vs. other containers)
-	Cpuset          string // Cpuset 0-2, 0,1
+	Memory          int64  // FIXME: we keep it for backward compatibility, it has been moved to hostConfig.
+	MemorySwap      int64  // FIXME: it has been moved to hostConfig.
+	CpuShares       int64  // FIXME: it has been moved to hostConfig.
+	Cpuset          string // FIXME: it has been moved to hostConfig and renamed to CpusetCpus.
 	AttachStdin     bool
 	AttachStdout    bool
 	AttachStderr    bool
@@ -31,8 +31,9 @@ type Config struct {
 	WorkingDir      string
 	Entrypoint      []string
 	NetworkDisabled bool
+	MacAddress      string
 	OnBuild         []string
-	SecurityOpt     []string
+	Labels          map[string]string
 }
 
 func ContainerConfigFromJob(job *engine.Job) *Config {
@@ -53,10 +54,10 @@ func ContainerConfigFromJob(job *engine.Job) *Config {
 		Image:           job.Getenv("Image"),
 		WorkingDir:      job.Getenv("WorkingDir"),
 		NetworkDisabled: job.GetenvBool("NetworkDisabled"),
+		MacAddress:      job.Getenv("MacAddress"),
 	}
 	job.GetenvJson("ExposedPorts", &config.ExposedPorts)
 	job.GetenvJson("Volumes", &config.Volumes)
-	config.SecurityOpt = job.GetenvList("SecurityOpt")
 	if PortSpecs := job.GetenvList("PortSpecs"); PortSpecs != nil {
 		config.PortSpecs = PortSpecs
 	}
@@ -66,6 +67,9 @@ func ContainerConfigFromJob(job *engine.Job) *Config {
 	if Cmd := job.GetenvList("Cmd"); Cmd != nil {
 		config.Cmd = Cmd
 	}
+
+	job.GetenvJson("Labels", &config.Labels)
+
 	if Entrypoint := job.GetenvList("Entrypoint"); Entrypoint != nil {
 		config.Entrypoint = Entrypoint
 	}

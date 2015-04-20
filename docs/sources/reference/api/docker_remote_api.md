@@ -30,13 +30,114 @@ page_keywords: API, Docker, rcli, REST, documentation
    Client applications need to take this into account to ensure
    they will not break when talking to newer Docker daemons.
 
-The current version of the API is v1.16
+The current version of the API is v1.18
 
 Calling `/info` is the same as calling
-`/v1.16/info`.
+`/v1.18/info`.
 
 You can still call an old version of the API using
-`/v1.15/info`.
+`/v1.17/info`.
+
+## v1.18
+
+### Full Documentation
+
+[*Docker Remote API v1.18*](/reference/api/docker_remote_api_v1.18/)
+
+### What's new
+
+`GET /version`
+
+**New!**
+This endpoint now returns `Os`, `Arch` and `KernelVersion`.
+
+`POST /containers/create`
+`POST /containers/(id)/start`
+
+**New!**
+You can set ulimit settings to be used within the container.
+
+`GET /info`
+
+**New!**
+This endpoint now returns `SystemTime`, `HttpProxy`,`HttpsProxy` and `NoProxy`.
+
+`GET /images/json`
+
+**New!**
+Added a `RepoDigests` field to include image digest information.
+
+`POST /build`
+
+**New!**
+Builds can now set resource constraints for all containers created for the build.
+
+**New!**
+(`CgroupParent`) can be passed in the host config to setup container cgroups under a specific cgroup.
+
+
+`POST /build`
+
+**New!**
+Closing the HTTP request will now cause the build to be canceled.
+
+## v1.17
+
+### Full Documentation
+
+[*Docker Remote API v1.17*](/reference/api/docker_remote_api_v1.17/)
+
+### What's new
+
+The build supports `LABEL` command. Use this to add metadata
+to an image. For example you could add data describing the content of an image.
+
+`LABEL "com.example.vendor"="ACME Incorporated"`
+
+**New!**
+`POST /containers/(id)/attach` and `POST /exec/(id)/start`
+
+**New!**
+Docker client now hints potential proxies about connection hijacking using HTTP Upgrade headers.
+
+`POST /containers/create`
+
+**New!**
+You can set labels on container create describing the container.
+
+`GET /containers/json`
+
+**New!**
+The endpoint returns the labels associated with the containers (`Labels`).
+
+`GET /containers/(id)/json`
+
+**New!**
+This endpoint now returns the list current execs associated with the container (`ExecIDs`).
+This endpoint now returns the container labels (`Config.Labels`).
+
+`POST /containers/(id)/rename`
+
+**New!**
+New endpoint to rename a container `id` to a new name.
+
+`POST /containers/create`
+`POST /containers/(id)/start`
+
+**New!**
+(`ReadonlyRootfs`) can be passed in the host config to mount the container's
+root filesystem as read only.
+
+`GET /containers/(id)/stats`
+
+**New!**
+This endpoint returns a live stream of a container's resource usage statistics.
+
+`GET /images/json`
+
+**New!**
+This endpoint now returns the labels associated with each image (`Labels`).
+
 
 ## v1.16
 
@@ -49,8 +150,22 @@ You can still call an old version of the API using
 `GET /info`
 
 **New!**
-`info` now returns the number of CPUs available on the machine (`NCPU`) and
-total memory available (`MemTotal`).
+`info` now returns the number of CPUs available on the machine (`NCPU`),
+total memory available (`MemTotal`), a user-friendly name describing the running Docker daemon (`Name`), a unique ID identifying the daemon (`ID`), and
+a list of daemon labels (`Labels`).
+
+`POST /containers/create`
+
+**New!**
+You can set the new container's MAC address explicitly.
+
+**New!**
+Volumes are now initialized when the container is created.
+
+`POST /containers/(id)/copy`
+
+**New!**
+You can now copy data which is contained in a volume.
 
 ## v1.15
 
@@ -59,6 +174,12 @@ total memory available (`MemTotal`).
 [*Docker Remote API v1.15*](/reference/api/docker_remote_api_v1.15/)
 
 ### What's new
+
+`POST /containers/create`
+
+**New!**
+It is now possible to set a container's HostConfig when creating a container.
+Previously this was only available when starting a container.
 
 ## v1.14
 
@@ -346,7 +467,7 @@ output is now generated in the client, using the
 You can now split stderr from stdout. This is done by
 prefixing a header to each transmission. See
 [`POST /containers/(id)/attach`](
-/reference/api/docker_remote_api_v1.9/#post--containers-(id)-attach "POST /containers/(id)/attach").
+/reference/api/docker_remote_api_v1.9/#attach-to-a-container "POST /containers/(id)/attach").
 The WebSocket attach is unchanged. Note that attach calls on the
 previous API version didn't change. Stdout and stderr are merged.
 

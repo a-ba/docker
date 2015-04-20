@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ import (
 	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/engine"
 	flag "github.com/docker/docker/pkg/mflag"
-	"github.com/docker/docker/pkg/sysinfo"
+	"github.com/docker/docker/registry"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/utils"
 )
@@ -37,10 +38,6 @@ type Fataler interface {
 func mkDaemon(f Fataler) *daemon.Daemon {
 	eng := newTestEngine(f, false, "")
 	return mkDaemonFromEngine(eng, f)
-	// FIXME:
-	// [...]
-	// Mtu:         docker.GetDefaultNetworkMtu(),
-	// [...]
 }
 
 func createNamedTestContainer(eng *engine.Engine, config *runconfig.Config, f Fataler, name string) (shortId string) {
@@ -89,14 +86,8 @@ func containerFileExists(eng *engine.Engine, id, dir string, t Fataler) bool {
 
 func containerAttach(eng *engine.Engine, id string, t Fataler) (io.WriteCloser, io.ReadCloser) {
 	c := getContainer(eng, id, t)
-	i, err := c.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	o, err := c.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	i := c.StdinPipe()
+	o := c.StdoutPipe()
 	return i, o
 }
 
@@ -126,7 +117,7 @@ func containerAssertExists(eng *engine.Engine, id string, t Fataler) {
 
 func containerAssertNotExists(eng *engine.Engine, id string, t Fataler) {
 	daemon := mkDaemonFromEngine(eng, t)
-	if c := daemon.Get(id); c != nil {
+	if c, _ := daemon.Get(id); c != nil {
 		t.Fatal(fmt.Errorf("Container %s should not exist", id))
 	}
 }
@@ -151,9 +142,9 @@ func assertHttpError(r *httptest.ResponseRecorder, t Fataler) {
 
 func getContainer(eng *engine.Engine, id string, t Fataler) *daemon.Container {
 	daemon := mkDaemonFromEngine(eng, t)
-	c := daemon.Get(id)
-	if c == nil {
-		t.Fatal(fmt.Errorf("No such container: %s", id))
+	c, err := daemon.Get(id)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return c
 }
@@ -183,7 +174,14 @@ func newTestEngine(t Fataler, autorestart bool, root string) *engine.Engine {
 	eng := engine.New()
 	eng.Logging = false
 	// Load default plugins
-	builtins.Register(eng)
+	if err := builtins.Register(eng); err != nil {
+		t.Fatal(err)
+	}
+	// load registry service
+	if err := registry.NewService(nil).Install(eng); err != nil {
+		t.Fatal(err)
+	}
+
 	// (This is manually copied and modified from main() until we have a more generic plugin system)
 	cfg := &daemon.Config{
 		Root:        root,
@@ -192,6 +190,8 @@ func newTestEngine(t Fataler, autorestart bool, root string) *engine.Engine {
 		// Either InterContainerCommunication or EnableIptables must be set,
 		// otherwise NewDaemon will fail because of conflicting settings.
 		InterContainerCommunication: true,
+		TrustKeyPath:                filepath.Join(root, "key.json"),
+		LogConfig:                   runconfig.LogConfig{Type: "json-file"},
 	}
 	d, err := daemon.NewDaemon(cfg, eng)
 	if err != nil {
@@ -254,7 +254,7 @@ func readFile(src string, t *testing.T) (content string) {
 // The caller is responsible for destroying the container.
 // Call t.Fatal() at the first error.
 func mkContainer(r *daemon.Daemon, args []string, t *testing.T) (*daemon.Container, *runconfig.HostConfig, error) {
-	config, hc, _, err := parseRun(args, nil)
+	config, hc, _, err := parseRun(args)
 	defer func() {
 		if err != nil && t != nil {
 			t.Fatal(err)
@@ -294,11 +294,8 @@ func runContainer(eng *engine.Engine, r *daemon.Daemon, args []string, t *testin
 	if err != nil {
 		return "", err
 	}
-	defer r.Destroy(container)
-	stdout, err := container.StdoutPipe()
-	if err != nil {
-		return "", err
-	}
+	defer r.Rm(container)
+	stdout := container.StdoutPipe()
 	defer stdout.Close()
 
 	job := eng.Job("start", container.ID)
@@ -355,9 +352,9 @@ func getImages(eng *engine.Engine, t *testing.T, all bool, filter string) *engin
 
 }
 
-func parseRun(args []string, sysInfo *sysinfo.SysInfo) (*runconfig.Config, *runconfig.HostConfig, *flag.FlagSet, error) {
+func parseRun(args []string) (*runconfig.Config, *runconfig.HostConfig, *flag.FlagSet, error) {
 	cmd := flag.NewFlagSet("run", flag.ContinueOnError)
 	cmd.SetOutput(ioutil.Discard)
 	cmd.Usage = nil
-	return runconfig.Parse(cmd, args, sysInfo)
+	return runconfig.Parse(cmd, args)
 }

@@ -3,7 +3,6 @@
 package systemd
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -16,32 +15,50 @@ import (
 	systemd "github.com/coreos/go-systemd/dbus"
 	"github.com/docker/libcontainer/cgroups"
 	"github.com/docker/libcontainer/cgroups/fs"
+	"github.com/docker/libcontainer/configs"
 	"github.com/godbus/dbus"
 )
 
-type systemdCgroup struct {
-	cgroup *cgroups.Cgroup
+type Manager struct {
+	Cgroups *configs.Cgroup
+	Paths   map[string]string
 }
 
 type subsystem interface {
-	GetStats(string, *cgroups.Stats) error
+	// Returns the stats, as 'stats', corresponding to the cgroup under 'path'.
+	GetStats(path string, stats *cgroups.Stats) error
+	// Set the cgroup represented by cgroup.
+	Set(path string, cgroup *configs.Cgroup) error
 }
 
-var (
-	connLock              sync.Mutex
-	theConn               *systemd.Conn
-	hasStartTransientUnit bool
-	subsystems            = map[string]subsystem{
-		"devices":    &fs.DevicesGroup{},
-		"memory":     &fs.MemoryGroup{},
-		"cpu":        &fs.CpuGroup{},
-		"cpuset":     &fs.CpusetGroup{},
-		"cpuacct":    &fs.CpuacctGroup{},
-		"blkio":      &fs.BlkioGroup{},
-		"perf_event": &fs.PerfEventGroup{},
-		"freezer":    &fs.FreezerGroup{},
-	}
+var subsystems = map[string]subsystem{
+	"devices":    &fs.DevicesGroup{},
+	"memory":     &fs.MemoryGroup{},
+	"cpu":        &fs.CpuGroup{},
+	"cpuset":     &fs.CpusetGroup{},
+	"cpuacct":    &fs.CpuacctGroup{},
+	"blkio":      &fs.BlkioGroup{},
+	"perf_event": &fs.PerfEventGroup{},
+	"freezer":    &fs.FreezerGroup{},
+}
+
+const (
+	testScopeWait = 4
 )
+
+var (
+	connLock                        sync.Mutex
+	theConn                         *systemd.Conn
+	hasStartTransientUnit           bool
+	hasTransientDefaultDependencies bool
+)
+
+func newProp(name string, units interface{}) systemd.Property {
+	return systemd.Property{
+		Name:  name,
+		Value: dbus.MakeVariant(units),
+	}
+}
 
 func UseSystemd() bool {
 	s, err := os.Stat("/run/systemd/system")
@@ -67,9 +84,46 @@ func UseSystemd() bool {
 			if dbusError, ok := err.(dbus.Error); ok {
 				if dbusError.Name == "org.freedesktop.DBus.Error.UnknownMethod" {
 					hasStartTransientUnit = false
+					return hasStartTransientUnit
 				}
 			}
 		}
+
+		// Ensure the scope name we use doesn't exist. Use the Pid to
+		// avoid collisions between multiple libcontainer users on a
+		// single host.
+		scope := fmt.Sprintf("libcontainer-%d-systemd-test-default-dependencies.scope", os.Getpid())
+		testScopeExists := true
+		for i := 0; i <= testScopeWait; i++ {
+			if _, err := theConn.StopUnit(scope, "replace"); err != nil {
+				if dbusError, ok := err.(dbus.Error); ok {
+					if strings.Contains(dbusError.Name, "org.freedesktop.systemd1.NoSuchUnit") {
+						testScopeExists = false
+						break
+					}
+				}
+			}
+			time.Sleep(time.Millisecond)
+		}
+
+		// Bail out if we can't kill this scope without testing for DefaultDependencies
+		if testScopeExists {
+			return hasStartTransientUnit
+		}
+
+		// Assume StartTransientUnit on a scope allows DefaultDependencies
+		hasTransientDefaultDependencies = true
+		ddf := newProp("DefaultDependencies", false)
+		if _, err := theConn.StartTransientUnit(scope, "replace", ddf); err != nil {
+			if dbusError, ok := err.(dbus.Error); ok {
+				if strings.Contains(dbusError.Name, "org.freedesktop.DBus.Error.PropertyReadOnly") {
+					hasTransientDefaultDependencies = false
+				}
+			}
+		}
+
+		// Not critical because of the stop unit logic above.
+		theConn.StopUnit(scope, "replace")
 	}
 	return hasStartTransientUnit
 }
@@ -84,129 +138,156 @@ func getIfaceForUnit(unitName string) string {
 	return "Unit"
 }
 
-func Apply(c *cgroups.Cgroup, pid int) (cgroups.ActiveCgroup, error) {
+func (m *Manager) Apply(pid int) error {
 	var (
+		c          = m.Cgroups
 		unitName   = getUnitName(c)
 		slice      = "system.slice"
 		properties []systemd.Property
-		res        = &systemdCgroup{}
 	)
-
-	res.cgroup = c
 
 	if c.Slice != "" {
 		slice = c.Slice
 	}
 
 	properties = append(properties,
-		systemd.Property{"Slice", dbus.MakeVariant(slice)},
-		systemd.Property{"Description", dbus.MakeVariant("docker container " + c.Name)},
-		systemd.Property{"PIDs", dbus.MakeVariant([]uint32{uint32(pid)})},
+		systemd.PropSlice(slice),
+		systemd.PropDescription("docker container "+c.Name),
+		newProp("PIDs", []uint32{uint32(pid)}),
 	)
 
 	// Always enable accounting, this gets us the same behaviour as the fs implementation,
 	// plus the kernel has some problems with joining the memory cgroup at a later time.
 	properties = append(properties,
-		systemd.Property{"MemoryAccounting", dbus.MakeVariant(true)},
-		systemd.Property{"CPUAccounting", dbus.MakeVariant(true)},
-		systemd.Property{"BlockIOAccounting", dbus.MakeVariant(true)})
+		newProp("MemoryAccounting", true),
+		newProp("CPUAccounting", true),
+		newProp("BlockIOAccounting", true))
+
+	if hasTransientDefaultDependencies {
+		properties = append(properties,
+			newProp("DefaultDependencies", false))
+	}
 
 	if c.Memory != 0 {
 		properties = append(properties,
-			systemd.Property{"MemoryLimit", dbus.MakeVariant(uint64(c.Memory))})
+			newProp("MemoryLimit", uint64(c.Memory)))
 	}
 	// TODO: MemoryReservation and MemorySwap not available in systemd
 
 	if c.CpuShares != 0 {
 		properties = append(properties,
-			systemd.Property{"CPUShares", dbus.MakeVariant(uint64(c.CpuShares))})
+			newProp("CPUShares", uint64(c.CpuShares)))
+	}
+
+	if c.BlkioWeight != 0 {
+		properties = append(properties,
+			newProp("BlockIOWeight", uint64(c.BlkioWeight)))
 	}
 
 	if _, err := theConn.StartTransientUnit(unitName, "replace", properties...); err != nil {
-		return nil, err
+		return err
 	}
 
-	if !c.AllowAllDevices {
-		if err := joinDevices(c, pid); err != nil {
-			return nil, err
-		}
+	if err := joinDevices(c, pid); err != nil {
+		return err
+	}
+
+	// TODO: CpuQuota and CpuPeriod not available in systemd
+	// we need to manually join the cpu.cfs_quota_us and cpu.cfs_period_us
+	if err := joinCpu(c, pid); err != nil {
+		return err
 	}
 
 	// -1 disables memorySwap
-	if c.MemorySwap >= 0 && (c.Memory != 0 || c.MemorySwap > 0) {
+	if c.MemorySwap >= 0 && c.Memory != 0 {
 		if err := joinMemory(c, pid); err != nil {
-			return nil, err
+			return err
 		}
 
 	}
 
-	// we need to manually join the freezer cgroup in systemd because it does not currently support it
-	// via the dbus api
+	// we need to manually join the freezer and cpuset cgroup in systemd
+	// because it does not currently support it via the dbus api.
 	if err := joinFreezer(c, pid); err != nil {
-		return nil, err
+		return err
 	}
 
-	if c.CpusetCpus != "" {
-		if err := joinCpuset(c, pid); err != nil {
-			return nil, err
+	if err := joinCpuset(c, pid); err != nil {
+		return err
+	}
+
+	paths := make(map[string]string)
+	for sysname := range subsystems {
+		subsystemPath, err := getSubsystemPath(m.Cgroups, sysname)
+		if err != nil {
+			// Don't fail if a cgroup hierarchy was not found, just skip this subsystem
+			if cgroups.IsNotFound(err) {
+				continue
+			}
+			return err
 		}
+		paths[sysname] = subsystemPath
 	}
 
-	return res, nil
+	m.Paths = paths
+
+	return nil
+}
+
+func (m *Manager) Destroy() error {
+	return cgroups.RemovePaths(m.Paths)
+}
+
+func (m *Manager) GetPaths() map[string]string {
+	return m.Paths
 }
 
 func writeFile(dir, file, data string) error {
 	return ioutil.WriteFile(filepath.Join(dir, file), []byte(data), 0700)
 }
 
-func (c *systemdCgroup) Paths() (map[string]string, error) {
-	paths := make(map[string]string)
-
-	for sysname := range subsystems {
-		subsystemPath, err := getSubsystemPath(c.cgroup, sysname)
-		if err != nil {
-			// Don't fail if a cgroup hierarchy was not found, just skip this subsystem
-			if cgroups.IsNotFound(err) {
-				continue
-			}
-
-			return nil, err
-		}
-
-		paths[sysname] = subsystemPath
+func join(c *configs.Cgroup, subsystem string, pid int) (string, error) {
+	path, err := getSubsystemPath(c, subsystem)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(path, 0755); err != nil && !os.IsExist(err) {
+		return "", err
+	}
+	if err := writeFile(path, "cgroup.procs", strconv.Itoa(pid)); err != nil {
+		return "", err
 	}
 
-	return paths, nil
+	return path, nil
 }
 
-func (c *systemdCgroup) Cleanup() error {
-	// systemd cleans up, we don't need to do much
-	paths, err := c.Paths()
+func joinCpu(c *configs.Cgroup, pid int) error {
+	path, err := getSubsystemPath(c, "cpu")
 	if err != nil {
 		return err
 	}
+	if c.CpuQuota != 0 {
+		if err = ioutil.WriteFile(filepath.Join(path, "cpu.cfs_quota_us"), []byte(strconv.FormatInt(c.CpuQuota, 10)), 0700); err != nil {
+			return err
+		}
+	}
+	if c.CpuPeriod != 0 {
+		if err = ioutil.WriteFile(filepath.Join(path, "cpu.cfs_period_us"), []byte(strconv.FormatInt(c.CpuPeriod, 10)), 0700); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	for _, path := range paths {
-		os.RemoveAll(path)
+func joinFreezer(c *configs.Cgroup, pid int) error {
+	if _, err := join(c, "freezer", pid); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func joinFreezer(c *cgroups.Cgroup, pid int) error {
-	path, err := getSubsystemPath(c, "freezer")
-	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(path, 0755); err != nil && !os.IsExist(err) {
-		return err
-	}
-
-	return ioutil.WriteFile(filepath.Join(path, "cgroup.procs"), []byte(strconv.Itoa(pid)), 0700)
-}
-
-func getSubsystemPath(c *cgroups.Cgroup, subsystem string) (string, error) {
+func getSubsystemPath(c *configs.Cgroup, subsystem string) (string, error) {
 	mountpoint, err := cgroups.FindCgroupMountpoint(subsystem)
 	if err != nil {
 		return "", err
@@ -225,30 +306,27 @@ func getSubsystemPath(c *cgroups.Cgroup, subsystem string) (string, error) {
 	return filepath.Join(mountpoint, initPath, slice, getUnitName(c)), nil
 }
 
-func Freeze(c *cgroups.Cgroup, state cgroups.FreezerState) error {
-	path, err := getSubsystemPath(c, "freezer")
+func (m *Manager) Freeze(state configs.FreezerState) error {
+	path, err := getSubsystemPath(m.Cgroups, "freezer")
 	if err != nil {
 		return err
 	}
 
-	if err := ioutil.WriteFile(filepath.Join(path, "freezer.state"), []byte(state), 0); err != nil {
+	prevState := m.Cgroups.Freezer
+	m.Cgroups.Freezer = state
+
+	freezer := subsystems["freezer"]
+	err = freezer.Set(path, m.Cgroups)
+	if err != nil {
+		m.Cgroups.Freezer = prevState
 		return err
 	}
-	for {
-		state_, err := ioutil.ReadFile(filepath.Join(path, "freezer.state"))
-		if err != nil {
-			return err
-		}
-		if string(state) == string(bytes.TrimSpace(state_)) {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
+
 	return nil
 }
 
-func GetPids(c *cgroups.Cgroup) ([]int, error) {
-	path, err := getSubsystemPath(c, "cpu")
+func (m *Manager) GetPids() ([]int, error) {
+	path, err := getSubsystemPath(m.Cgroups, "cpu")
 	if err != nil {
 		return nil, err
 	}
@@ -256,37 +334,27 @@ func GetPids(c *cgroups.Cgroup) ([]int, error) {
 	return cgroups.ReadProcsFile(path)
 }
 
-func getUnitName(c *cgroups.Cgroup) string {
-	return fmt.Sprintf("%s-%s.scope", c.Parent, c.Name)
-}
-
-/*
- * This would be nicer to get from the systemd API when accounting
- * is enabled, but sadly there is no way to do that yet.
- * The lack of this functionality in the API & the approach taken
- * is guided by
- * http://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/#readingaccountinginformation.
- */
-func GetStats(c *cgroups.Cgroup) (*cgroups.Stats, error) {
+func (m *Manager) GetStats() (*cgroups.Stats, error) {
 	stats := cgroups.NewStats()
-
-	for sysname, sys := range subsystems {
-		subsystemPath, err := getSubsystemPath(c, sysname)
-		if err != nil {
-			// Don't fail if a cgroup hierarchy was not found, just skip this subsystem
-			if cgroups.IsNotFound(err) {
-				continue
-			}
-
-			return nil, err
+	for name, path := range m.Paths {
+		sys, ok := subsystems[name]
+		if !ok || !cgroups.PathExists(path) {
+			continue
 		}
-
-		if err := sys.GetStats(subsystemPath, stats); err != nil {
+		if err := sys.GetStats(path, stats); err != nil {
 			return nil, err
 		}
 	}
 
 	return stats, nil
+}
+
+func (m *Manager) Set(container *configs.Config) error {
+	panic("not implemented")
+}
+
+func getUnitName(c *configs.Cgroup) string {
+	return fmt.Sprintf("%s-%s.scope", c.Parent, c.Name)
 }
 
 // Atm we can't use the systemd device support because of two missing things:
@@ -300,28 +368,15 @@ func GetStats(c *cgroups.Cgroup) (*cgroups.Stats, error) {
 // Note: we can't use systemd to set up the initial limits, and then change the cgroup
 // because systemd will re-write the device settings if it needs to re-apply the cgroup context.
 // This happens at least for v208 when any sibling unit is started.
-func joinDevices(c *cgroups.Cgroup, pid int) error {
-	path, err := getSubsystemPath(c, "devices")
+func joinDevices(c *configs.Cgroup, pid int) error {
+	path, err := join(c, "devices", pid)
 	if err != nil {
 		return err
 	}
 
-	if err := os.MkdirAll(path, 0755); err != nil && !os.IsExist(err) {
+	devices := subsystems["devices"]
+	if err := devices.Set(path, c); err != nil {
 		return err
-	}
-
-	if err := ioutil.WriteFile(filepath.Join(path, "cgroup.procs"), []byte(strconv.Itoa(pid)), 0700); err != nil {
-		return err
-	}
-
-	if err := writeFile(path, "devices.deny", "a"); err != nil {
-		return err
-	}
-
-	for _, dev := range c.AllowedDevices {
-		if err := writeFile(path, "devices.allow", dev.GetCgroupAllowString()); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -329,11 +384,11 @@ func joinDevices(c *cgroups.Cgroup, pid int) error {
 
 // Symmetrical public function to update device based cgroups.  Also available
 // in the fs implementation.
-func ApplyDevices(c *cgroups.Cgroup, pid int) error {
+func ApplyDevices(c *configs.Cgroup, pid int) error {
 	return joinDevices(c, pid)
 }
 
-func joinMemory(c *cgroups.Cgroup, pid int) error {
+func joinMemory(c *configs.Cgroup, pid int) error {
 	memorySwap := c.MemorySwap
 
 	if memorySwap == 0 {
@@ -352,7 +407,7 @@ func joinMemory(c *cgroups.Cgroup, pid int) error {
 // systemd does not atm set up the cpuset controller, so we must manually
 // join it. Additionally that is a very finicky controller where each
 // level must have a full setup as the default for a new directory is "no cpus"
-func joinCpuset(c *cgroups.Cgroup, pid int) error {
+func joinCpuset(c *configs.Cgroup, pid int) error {
 	path, err := getSubsystemPath(c, "cpuset")
 	if err != nil {
 		return err
@@ -360,5 +415,5 @@ func joinCpuset(c *cgroups.Cgroup, pid int) error {
 
 	s := &fs.CpusetGroup{}
 
-	return s.SetDir(path, c.CpusetCpus, pid)
+	return s.ApplyDir(path, c, pid)
 }

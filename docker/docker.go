@@ -5,15 +5,16 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"log" // see gh#8745, client needs to use go log pkg
 	"os"
 	"strings"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api"
 	"github.com/docker/docker/api/client"
-	"github.com/docker/docker/dockerversion"
+	"github.com/docker/docker/autogen/dockerversion"
 	flag "github.com/docker/docker/pkg/mflag"
-	"github.com/docker/docker/reexec"
+	"github.com/docker/docker/pkg/reexec"
+	"github.com/docker/docker/pkg/term"
 	"github.com/docker/docker/utils"
 )
 
@@ -29,6 +30,11 @@ func main() {
 		return
 	}
 
+	// Set terminal emulation based on platform as required.
+	stdin, stdout, stderr := term.StdStreams()
+
+	initLogging(stderr)
+
 	flag.Parse()
 	// FIXME: validate daemon flags here
 
@@ -36,11 +42,23 @@ func main() {
 		showVersion()
 		return
 	}
-	if *flDebug {
-		os.Setenv("DEBUG", "1")
+
+	if *flLogLevel != "" {
+		lvl, err := log.ParseLevel(*flLogLevel)
+		if err != nil {
+			log.Fatalf("Unable to parse logging level: %s", *flLogLevel)
+		}
+		setLogLevel(lvl)
+	} else {
+		setLogLevel(log.InfoLevel)
 	}
 
-	initLogging(*flDebug)
+	// -D, --debug, -l/--log-level=debug processing
+	// When/if -D is removed this block can be deleted
+	if *flDebug {
+		os.Setenv("DEBUG", "1")
+		setLogLevel(log.DebugLevel)
+	}
 
 	if len(flHosts) == 0 {
 		defaultHost := os.Getenv("DOCKER_HOST")
@@ -55,7 +73,13 @@ func main() {
 		flHosts = append(flHosts, defaultHost)
 	}
 
+	setDefaultConfFlag(flTrustKey, defaultTrustKeyFile)
+
 	if *flDaemon {
+		if *flHelp {
+			flag.Usage()
+			return
+		}
 		mainDaemon()
 		return
 	}
@@ -71,9 +95,14 @@ func main() {
 	)
 	tlsConfig.InsecureSkipVerify = true
 
+	// Regardless of whether the user sets it to true or false, if they
+	// specify --tlsverify at all then we need to turn on tls
+	if flag.IsSet("-tlsverify") {
+		*flTls = true
+	}
+
 	// If we should verify the server, we need to load a trusted ca
 	if *flTlsVerify {
-		*flTls = true
 		certPool := x509.NewCertPool()
 		file, err := ioutil.ReadFile(*flCa)
 		if err != nil {
@@ -92,7 +121,7 @@ func main() {
 			*flTls = true
 			cert, err := tls.LoadX509KeyPair(*flCert, *flKey)
 			if err != nil {
-				log.Fatalf("Couldn't load X509 key pair: %s. Key encrypted?", err)
+				log.Fatalf("Couldn't load X509 key pair: %q. Make sure the key is encrypted", err)
 			}
 			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
@@ -101,15 +130,15 @@ func main() {
 	}
 
 	if *flTls || *flTlsVerify {
-		cli = client.NewDockerCli(os.Stdin, os.Stdout, os.Stderr, nil, protoAddrParts[0], protoAddrParts[1], &tlsConfig)
+		cli = client.NewDockerCli(stdin, stdout, stderr, *flTrustKey, protoAddrParts[0], protoAddrParts[1], &tlsConfig)
 	} else {
-		cli = client.NewDockerCli(os.Stdin, os.Stdout, os.Stderr, nil, protoAddrParts[0], protoAddrParts[1], nil)
+		cli = client.NewDockerCli(stdin, stdout, stderr, *flTrustKey, protoAddrParts[0], protoAddrParts[1], nil)
 	}
 
 	if err := cli.Cmd(flag.Args()...); err != nil {
 		if sterr, ok := err.(*utils.StatusError); ok {
 			if sterr.Status != "" {
-				log.Println("%s", sterr.Status)
+				log.Println(sterr.Status)
 			}
 			os.Exit(sterr.StatusCode)
 		}

@@ -37,8 +37,8 @@ var (
 	spaceRegex            = regexp.MustCompile(`^([^=]+) (.*)$`)
 	mcsList               = make(map[string]bool)
 	selinuxfs             = "unknown"
-	selinuxEnabled        = false
-	selinuxEnabledChecked = false
+	selinuxEnabled        = false // Stores whether selinux is currently enabled
+	selinuxEnabledChecked = false // Stores whether selinux enablement has been checked or established yet
 )
 
 type SELinuxContext map[string]string
@@ -48,6 +48,11 @@ func SetDisabled() {
 	selinuxEnabled, selinuxEnabledChecked = false, true
 }
 
+// getSelinuxMountPoint returns the path to the mountpoint of an selinuxfs
+// filesystem or an empty string if no mountpoint is found.  Selinuxfs is
+// a proc-like pseudo-filesystem that exposes the selinux policy API to
+// processes.  The existence of an selinuxfs mount is used to determine
+// whether selinux is currently enabled or not.
 func getSelinuxMountPoint() string {
 	if selinuxfs != "unknown" {
 		return selinuxfs
@@ -74,6 +79,7 @@ func getSelinuxMountPoint() string {
 	return selinuxfs
 }
 
+// SelinuxEnabled returns whether selinux is currently enabled.
 func SelinuxEnabled() bool {
 	if selinuxEnabledChecked {
 		return selinuxEnabled
@@ -145,13 +151,19 @@ func readCon(name string) (string, error) {
 	return val, err
 }
 
+// Setfilecon sets the SELinux label for this path or returns an error.
 func Setfilecon(path string, scon string) error {
 	return system.Lsetxattr(path, xattrNameSelinux, []byte(scon), 0)
 }
 
-// Return the SELinux label for this path
+// Getfilecon returns the SELinux label for this path or returns an error.
 func Getfilecon(path string) (string, error) {
 	con, err := system.Lgetxattr(path, xattrNameSelinux)
+
+	// Trim the NUL byte at the end of the byte buffer, if present.
+	if con[len(con)-1] == '\x00' {
+		con = con[:len(con)-1]
+	}
 	return string(con), err
 }
 
@@ -163,11 +175,12 @@ func Getfscreatecon() (string, error) {
 	return readCon(fmt.Sprintf("/proc/self/task/%d/attr/fscreate", syscall.Gettid()))
 }
 
-// Return the SELinux label of the current process thread.
+// Getcon returns the SELinux label of the current process thread, or an error.
 func Getcon() (string, error) {
 	return readCon(fmt.Sprintf("/proc/self/task/%d/attr/current", syscall.Gettid()))
 }
 
+// Getpidcon returns the SELinux label of the given pid, or an error.
 func Getpidcon(pid int) (string, error) {
 	return readCon(fmt.Sprintf("/proc/%d/attr/current", pid))
 }
@@ -433,4 +446,29 @@ func Chcon(fpath string, scon string, recurse bool) error {
 	}
 
 	return Setfilecon(fpath, scon)
+}
+
+// DupSecOpt takes an SELinux process label and returns security options that
+// can will set the SELinux Type and Level for future container processes
+func DupSecOpt(src string) []string {
+	if src == "" {
+		return nil
+	}
+	con := NewContext(src)
+	if con["user"] == "" ||
+		con["role"] == "" ||
+		con["type"] == "" ||
+		con["level"] == "" {
+		return nil
+	}
+	return []string{"label:user:" + con["user"],
+		"label:role:" + con["role"],
+		"label:type:" + con["type"],
+		"label:level:" + con["level"]}
+}
+
+// DisableSecOpt returns a security opt that can be used to disabling SELinux
+// labeling support for future container processes
+func DisableSecOpt() []string {
+	return []string{"label:disable"}
 }

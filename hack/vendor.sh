@@ -39,7 +39,7 @@ clone() {
 	echo done
 }
 
-clone git github.com/kr/pty 67e2db24c8
+clone git github.com/kr/pty 05017fcccf
 
 clone git github.com/gorilla/context 14f550f51a
 
@@ -51,9 +51,11 @@ clone hg code.google.com/p/go.net 84a4013f96e0
 
 clone hg code.google.com/p/gosqlite 74691fb6f837
 
-clone git github.com/docker/libtrust d273ef2565ca
+clone git github.com/docker/libtrust 230dfd18c232
 
-clone git github.com/Sirupsen/logrus v0.5.1
+clone git github.com/Sirupsen/logrus v0.7.1
+
+clone git github.com/go-fsnotify/fsnotify v1.0.4
 
 # get Go tip's archive/tar, for xattr support and improved performance
 # TODO after Go 1.4 drops, bump our minimum supported version and drop this vendored dep
@@ -66,8 +68,15 @@ if [ "$1" = '--go' ]; then
 	mv tmp-tar src/code.google.com/p/go/src/pkg/archive/tar
 fi
 
-clone git github.com/docker/libcontainer f60d7b9195f8dc0b5d343abbc3293da7c17bb11c
+# get digest package from distribution
+clone git github.com/docker/distribution d957768537c5af40e4f4cd96871f7b2bde9e2923
+mv src/github.com/docker/distribution/digest tmp-digest
+rm -rf src/github.com/docker/distribution
+mkdir -p src/github.com/docker/distribution
+mv tmp-digest src/github.com/docker/distribution/digest
+
+clone git github.com/docker/libcontainer bd8ec36106086f72b66e1be85a81202b93503e44
 # see src/github.com/docker/libcontainer/update-vendor.sh which is the "source of truth" for libcontainer deps (just like this file)
 rm -rf src/github.com/docker/libcontainer/vendor
-eval "$(grep '^clone ' src/github.com/docker/libcontainer/update-vendor.sh | grep -v 'github.com/codegangsta/cli')"
+eval "$(grep '^clone ' src/github.com/docker/libcontainer/update-vendor.sh | grep -v 'github.com/codegangsta/cli' | grep -v 'github.com/Sirupsen/logrus')"
 # we exclude "github.com/codegangsta/cli" here because it's only needed for "nsinit", which Docker doesn't include

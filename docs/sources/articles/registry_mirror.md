@@ -29,16 +29,16 @@ There are two steps to set up and use a local registry mirror.
 You will need to pass the `--registry-mirror` option to your Docker daemon on
 startup:
 
-    docker --registry-mirror=http://<my-docker-mirror-host> -d
+    sudo docker --registry-mirror=http://<my-docker-mirror-host> -d
 
 For example, if your mirror is serving on `http://10.0.0.2:5000`, you would run:
 
-    docker --registry-mirror=http://10.0.0.2:5000 -d
+    sudo docker --registry-mirror=http://10.0.0.2:5000 -d
 
 **NOTE:**
 Depending on your local host setup, you may be able to add the
 `--registry-mirror` options to the `DOCKER_OPTS` variable in
-`/etc/defaults/docker`.
+`/etc/default/docker`.
 
 ### Step 2: Run the local registry mirror
 
@@ -47,17 +47,18 @@ You will need to start a local registry mirror service. The
 functionality. For example, to run a local registry mirror that serves on
 port `5000` and mirrors the content at `registry-1.docker.io`:
 
-    docker run -p 5000:5000 \
+    sudo docker run -p 5000:5000 \
         -e STANDALONE=false \
         -e MIRROR_SOURCE=https://registry-1.docker.io \
-        -e MIRROR_SOURCE_INDEX=https://index.docker.io registry
+        -e MIRROR_SOURCE_INDEX=https://index.docker.io \
+        registry
 
 ## Test it out
 
 With your mirror running, pull an image that you haven't pulled before (using
 `time` to time it):
 
-    $ time docker pull node:latest
+    $ time sudo docker pull node:latest
     Pulling repository node
     [...]
     
@@ -71,7 +72,7 @@ Now, remove the image from your local machine:
 
 Finally, re-pull the image:
 
-    $ time docker pull node:latest
+    $ time sudo docker pull node:latest
     Pulling repository node
     [...]
     

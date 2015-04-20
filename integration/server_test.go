@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/builder"
 	"github.com/docker/docker/engine"
 )
 
@@ -12,7 +13,7 @@ func TestCreateNumberHostname(t *testing.T) {
 	eng := NewTestEngine(t)
 	defer mkDaemonFromEngine(eng, t).Nuke()
 
-	config, _, _, err := parseRun([]string{"-h", "web.0", unitTestImageID, "echo test"}, nil)
+	config, _, _, err := parseRun([]string{"-h", "web.0", unitTestImageID, "echo test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,9 +23,11 @@ func TestCreateNumberHostname(t *testing.T) {
 
 func TestCommit(t *testing.T) {
 	eng := NewTestEngine(t)
+	b := &builder.BuilderJob{Engine: eng}
+	b.Install()
 	defer mkDaemonFromEngine(eng, t).Nuke()
 
-	config, _, _, err := parseRun([]string{unitTestImageID, "/bin/cat"}, nil)
+	config, _, _, err := parseRun([]string{unitTestImageID, "/bin/cat"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,13 +45,15 @@ func TestCommit(t *testing.T) {
 
 func TestMergeConfigOnCommit(t *testing.T) {
 	eng := NewTestEngine(t)
+	b := &builder.BuilderJob{Engine: eng}
+	b.Install()
 	runtime := mkDaemonFromEngine(eng, t)
 	defer runtime.Nuke()
 
 	container1, _, _ := mkContainer(runtime, []string{"-e", "FOO=bar", unitTestImageID, "echo test > /tmp/foo"}, t)
-	defer runtime.Destroy(container1)
+	defer runtime.Rm(container1)
 
-	config, _, _, err := parseRun([]string{container1.ID, "cat /tmp/foo"}, nil)
+	config, _, _, err := parseRun([]string{container1.ID, "cat /tmp/foo"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -64,7 +69,7 @@ func TestMergeConfigOnCommit(t *testing.T) {
 	}
 
 	container2, _, _ := mkContainer(runtime, []string{engine.Tail(outputBuffer, 1)}, t)
-	defer runtime.Destroy(container2)
+	defer runtime.Rm(container2)
 
 	job = eng.Job("container_inspect", container1.Name)
 	baseContainer, _ := job.Stdout.AddEnv()
@@ -102,7 +107,7 @@ func TestRestartKillWait(t *testing.T) {
 	runtime := mkDaemonFromEngine(eng, t)
 	defer runtime.Nuke()
 
-	config, hostConfig, _, err := parseRun([]string{"-i", unitTestImageID, "/bin/cat"}, nil)
+	config, hostConfig, _, err := parseRun([]string{"-i", unitTestImageID, "/bin/cat"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +168,7 @@ func TestCreateStartRestartStopStartKillRm(t *testing.T) {
 	eng := NewTestEngine(t)
 	defer mkDaemonFromEngine(eng, t).Nuke()
 
-	config, hostConfig, _, err := parseRun([]string{"-i", unitTestImageID, "/bin/cat"}, nil)
+	config, hostConfig, _, err := parseRun([]string{"-i", unitTestImageID, "/bin/cat"})
 	if err != nil {
 		t.Fatal(err)
 	}

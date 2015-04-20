@@ -9,6 +9,10 @@ var (
 	std = New()
 )
 
+func StandardLogger() *Logger {
+	return std
+}
+
 // SetOutput sets the standard logger output.
 func SetOutput(out io.Writer) {
 	std.mu.Lock()
@@ -28,6 +32,13 @@ func SetLevel(level Level) {
 	std.mu.Lock()
 	defer std.mu.Unlock()
 	std.Level = level
+}
+
+// GetLevel returns the standard logger level.
+func GetLevel() Level {
+	std.mu.Lock()
+	defer std.mu.Unlock()
+	return std.Level
 }
 
 // AddHook adds a hook to the standard logger hooks.
@@ -96,7 +107,7 @@ func Fatal(args ...interface{}) {
 	std.Fatal(args...)
 }
 
-// Debugf logs a message at level Debugf on the standard logger.
+// Debugf logs a message at level Debug on the standard logger.
 func Debugf(format string, args ...interface{}) {
 	std.Debugf(format, args...)
 }
@@ -126,7 +137,7 @@ func Errorf(format string, args ...interface{}) {
 	std.Errorf(format, args...)
 }
 
-// Panicf logs a message at level Pancf on the standard logger.
+// Panicf logs a message at level Panic on the standard logger.
 func Panicf(format string, args ...interface{}) {
 	std.Panicf(format, args...)
 }

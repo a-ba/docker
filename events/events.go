@@ -1,11 +1,15 @@
 package events
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/docker/docker/engine"
+	"github.com/docker/docker/pkg/parsers/filters"
 	"github.com/docker/docker/utils"
 )
 
@@ -48,6 +52,11 @@ func (e *Events) Get(job *engine.Job) engine.Status {
 		timeout = time.NewTimer(time.Unix(until, 0).Sub(time.Now()))
 	)
 
+	eventFilters, err := filters.FromParam(job.Getenv("filters"))
+	if err != nil {
+		return job.Error(err)
+	}
+
 	// If no until, disable timeout
 	if until == 0 {
 		timeout.Stop()
@@ -61,7 +70,7 @@ func (e *Events) Get(job *engine.Job) engine.Status {
 
 	// Resend every event in the [since, until] time interval.
 	if since != 0 {
-		if err := e.writeCurrent(job, since, until); err != nil {
+		if err := e.writeCurrent(job, since, until, eventFilters); err != nil {
 			return job.Error(err)
 		}
 	}
@@ -72,7 +81,7 @@ func (e *Events) Get(job *engine.Job) engine.Status {
 			if !ok {
 				return engine.StatusOK
 			}
-			if err := writeEvent(job, event); err != nil {
+			if err := writeEvent(job, event, eventFilters); err != nil {
 				return job.Error(err)
 			}
 		case <-timeout.C:
@@ -97,7 +106,35 @@ func (e *Events) SubscribersCount(job *engine.Job) engine.Status {
 	return engine.StatusOK
 }
 
-func writeEvent(job *engine.Job, event *utils.JSONMessage) error {
+func writeEvent(job *engine.Job, event *utils.JSONMessage, eventFilters filters.Args) error {
+	isFiltered := func(field string, filter []string) bool {
+		if len(filter) == 0 {
+			return false
+		}
+		for _, v := range filter {
+			if v == field {
+				return false
+			}
+			if strings.Contains(field, ":") {
+				image := strings.Split(field, ":")
+				if image[0] == v {
+					return false
+				}
+			}
+		}
+		return true
+	}
+
+	//incoming container filter can be name,id or partial id, convert and replace as a full container id
+	for i, cn := range eventFilters["container"] {
+		eventFilters["container"][i] = GetContainerId(job.Eng, cn)
+	}
+
+	if isFiltered(event.Status, eventFilters["event"]) || isFiltered(event.From, eventFilters["image"]) ||
+		isFiltered(event.ID, eventFilters["container"]) {
+		return nil
+	}
+
 	// When sending an event JSON serialization errors are ignored, but all
 	// other errors lead to the eviction of the listener.
 	if b, err := json.Marshal(event); err == nil {
@@ -108,11 +145,11 @@ func writeEvent(job *engine.Job, event *utils.JSONMessage) error {
 	return nil
 }
 
-func (e *Events) writeCurrent(job *engine.Job, since, until int64) error {
+func (e *Events) writeCurrent(job *engine.Job, since, until int64, eventFilters filters.Args) error {
 	e.mu.RLock()
 	for _, event := range e.events {
 		if event.Time >= since && (event.Time <= until || until == 0) {
-			if err := writeEvent(job, event); err != nil {
+			if err := writeEvent(job, event, eventFilters); err != nil {
 				e.mu.RUnlock()
 				return err
 			}
@@ -173,4 +210,21 @@ func (e *Events) unsubscribe(l listener) bool {
 	}
 	e.mu.Unlock()
 	return false
+}
+
+func GetContainerId(eng *engine.Engine, name string) string {
+	var buf bytes.Buffer
+	job := eng.Job("container_inspect", name)
+
+	var outStream io.Writer
+
+	outStream = &buf
+	job.Stdout.Set(outStream)
+
+	if err := job.Run(); err != nil {
+		return ""
+	}
+	var out struct{ ID string }
+	json.NewDecoder(&buf).Decode(&out)
+	return out.ID
 }

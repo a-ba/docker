@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/engine"
@@ -39,9 +40,12 @@ func (daemon *Daemon) ContainerLogs(job *engine.Job) engine.Status {
 	if tail == "" {
 		tail = "all"
 	}
-	container := daemon.Get(name)
-	if container == nil {
-		return job.Errorf("No such container: %s", name)
+	container, err := daemon.Get(name)
+	if err != nil {
+		return job.Error(err)
+	}
+	if container.LogDriverType() != "json-file" {
+		return job.Errorf("\"logs\" endpoint is supported only for \"json-file\" logging driver")
 	}
 	cLog, err := container.ReadLog("json")
 	if err != nil && os.IsNotExist(err) {
@@ -98,7 +102,8 @@ func (daemon *Daemon) ContainerLogs(job *engine.Job) engine.Status {
 				}
 				logLine := l.Log
 				if times {
-					logLine = fmt.Sprintf("%s %s", l.Created.Format(format), logLine)
+					// format can be "" or time format, so here can't be error
+					logLine, _ = l.Format(format)
 				}
 				if l.Stream == "stdout" && stdout {
 					io.WriteString(job.Stdout, logLine)
@@ -112,24 +117,36 @@ func (daemon *Daemon) ContainerLogs(job *engine.Job) engine.Status {
 	}
 	if follow && container.IsRunning() {
 		errors := make(chan error, 2)
+		wg := sync.WaitGroup{}
+
 		if stdout {
+			wg.Add(1)
 			stdoutPipe := container.StdoutLogPipe()
 			defer stdoutPipe.Close()
 			go func() {
 				errors <- jsonlog.WriteLog(stdoutPipe, job.Stdout, format)
+				wg.Done()
 			}()
 		}
 		if stderr {
+			wg.Add(1)
 			stderrPipe := container.StderrLogPipe()
 			defer stderrPipe.Close()
 			go func() {
 				errors <- jsonlog.WriteLog(stderrPipe, job.Stderr, format)
+				wg.Done()
 			}()
 		}
-		err := <-errors
-		if err != nil {
-			log.Errorf("%s", err)
+
+		wg.Wait()
+		close(errors)
+
+		for err := range errors {
+			if err != nil {
+				log.Errorf("%s", err)
+			}
 		}
+
 	}
 	return engine.StatusOK
 }

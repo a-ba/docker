@@ -8,20 +8,32 @@ import (
 	"strconv"
 
 	"github.com/docker/libcontainer/cgroups"
+	"github.com/docker/libcontainer/configs"
 )
 
 type CpusetGroup struct {
 }
 
-func (s *CpusetGroup) Set(d *data) error {
-	// we don't want to join this cgroup unless it is specified
-	if d.c.CpusetCpus != "" {
-		dir, err := d.path("cpuset")
-		if err != nil {
+func (s *CpusetGroup) Apply(d *data) error {
+	dir, err := d.path("cpuset")
+	if err != nil {
+		return err
+	}
+
+	return s.ApplyDir(dir, d.c, d.pid)
+}
+
+func (s *CpusetGroup) Set(path string, cgroup *configs.Cgroup) error {
+	if cgroup.CpusetCpus != "" {
+		if err := writeFile(path, "cpuset.cpus", cgroup.CpusetCpus); err != nil {
 			return err
 		}
+	}
 
-		return s.SetDir(dir, d.c.CpusetCpus, d.pid)
+	if cgroup.CpusetMems != "" {
+		if err := writeFile(path, "cpuset.mems", cgroup.CpusetMems); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -35,7 +47,7 @@ func (s *CpusetGroup) GetStats(path string, stats *cgroups.Stats) error {
 	return nil
 }
 
-func (s *CpusetGroup) SetDir(dir, value string, pid int) error {
+func (s *CpusetGroup) ApplyDir(dir string, cgroup *configs.Cgroup, pid int) error {
 	if err := s.ensureParent(dir); err != nil {
 		return err
 	}
@@ -46,7 +58,9 @@ func (s *CpusetGroup) SetDir(dir, value string, pid int) error {
 		return err
 	}
 
-	if err := writeFile(dir, "cpuset.cpus", value); err != nil {
+	// the default values inherit from parent cgroup are already set in
+	// s.ensureParent, cover these if we have our own
+	if err := s.Set(dir, cgroup); err != nil {
 		return err
 	}
 

@@ -8,13 +8,14 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/daemon/execdriver"
+	"github.com/docker/docker/pkg/common"
 	"github.com/docker/docker/runconfig"
 )
 
 const defaultTimeIncrement = 100
 
 // containerMonitor monitors the execution of a container's main process.
-// If a restart policy is specified for the cotnainer the monitor will ensure that the
+// If a restart policy is specified for the container the monitor will ensure that the
 // process is restarted based on the rules of the policy.  When the container is finally stopped
 // the monitor will reset and cleanup any of the container resources such as networking allocations
 // and the rootfs
@@ -100,7 +101,7 @@ func (m *containerMonitor) Close() error {
 func (m *containerMonitor) Start() error {
 	var (
 		err        error
-		exitStatus int
+		exitStatus execdriver.ExitStatus
 		// this variable indicates where we in execution flow:
 		// before Run or after
 		afterRun bool
@@ -110,7 +111,7 @@ func (m *containerMonitor) Start() error {
 	defer func() {
 		if afterRun {
 			m.container.Lock()
-			m.container.setStopped(exitStatus)
+			m.container.setStopped(&exitStatus)
 			defer m.container.Unlock()
 		}
 		m.Close()
@@ -122,7 +123,7 @@ func (m *containerMonitor) Start() error {
 	for {
 		m.container.RestartCount++
 
-		if err := m.container.startLoggingToDisk(); err != nil {
+		if err := m.container.startLogging(); err != nil {
 			m.resetContainer(false)
 
 			return err
@@ -138,6 +139,7 @@ func (m *containerMonitor) Start() error {
 			// if we receive an internal error from the initial start of a container then lets
 			// return it instead of entering the restart loop
 			if m.container.RestartCount == 0 {
+				m.container.ExitCode = -1
 				m.resetContainer(false)
 
 				return err
@@ -149,10 +151,13 @@ func (m *containerMonitor) Start() error {
 		// here container.Lock is already lost
 		afterRun = true
 
-		m.resetMonitor(err == nil && exitStatus == 0)
+		m.resetMonitor(err == nil && exitStatus.ExitCode == 0)
 
-		if m.shouldRestart(exitStatus) {
-			m.container.SetRestarting(exitStatus)
+		if m.shouldRestart(exitStatus.ExitCode) {
+			m.container.SetRestarting(&exitStatus)
+			if exitStatus.OOMKilled {
+				m.container.LogEvent("oom")
+			}
 			m.container.LogEvent("die")
 			m.resetContainer(true)
 
@@ -167,6 +172,9 @@ func (m *containerMonitor) Start() error {
 			}
 			continue
 		}
+		if exitStatus.OOMKilled {
+			m.container.LogEvent("oom")
+		}
 		m.container.LogEvent("die")
 		m.resetContainer(true)
 		return err
@@ -174,7 +182,7 @@ func (m *containerMonitor) Start() error {
 }
 
 // resetMonitor resets the stateful fields on the containerMonitor based on the
-// previous runs success or failure.  Reguardless of success, if the container had
+// previous runs success or failure.  Regardless of success, if the container had
 // an execution time of more than 10s then reset the timer back to the default
 func (m *containerMonitor) resetMonitor(successful bool) {
 	executionTime := time.Now().Sub(m.lastStartTime).Seconds()
@@ -206,7 +214,7 @@ func (m *containerMonitor) waitForNextRestart() {
 
 // shouldRestart checks the restart policy and applies the rules to determine if
 // the container's process should be restarted
-func (m *containerMonitor) shouldRestart(exitStatus int) bool {
+func (m *containerMonitor) shouldRestart(exitCode int) bool {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -220,12 +228,13 @@ func (m *containerMonitor) shouldRestart(exitStatus int) bool {
 		return true
 	case "on-failure":
 		// the default value of 0 for MaximumRetryCount means that we will not enforce a maximum count
-		if max := m.restartPolicy.MaximumRetryCount; max != 0 && m.failureCount >= max {
-			log.Debugf("stopping restart of container %s because maximum failure could of %d has been reached", max)
+		if max := m.restartPolicy.MaximumRetryCount; max != 0 && m.failureCount > max {
+			log.Debugf("stopping restart of container %s because maximum failure could of %d has been reached",
+				common.TruncateID(m.container.ID), max)
 			return false
 		}
 
-		return exitStatus != 0
+		return exitCode != 0
 	}
 
 	return false
@@ -291,6 +300,24 @@ func (m *containerMonitor) resetContainer(lock bool) {
 	// Re-create a brand new stdin pipe once the container exited
 	if container.Config.OpenStdin {
 		container.stdin, container.stdinPipe = io.Pipe()
+	}
+
+	if container.logDriver != nil {
+		if container.logCopier != nil {
+			exit := make(chan struct{})
+			go func() {
+				container.logCopier.Wait()
+				close(exit)
+			}()
+			select {
+			case <-time.After(1 * time.Second):
+				log.Warnf("Logger didn't exit in time: logs may be truncated")
+			case <-exit:
+			}
+		}
+		container.logDriver.Close()
+		container.logCopier = nil
+		container.logDriver = nil
 	}
 
 	c := container.command.ProcessConfig.Cmd

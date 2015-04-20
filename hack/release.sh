@@ -190,6 +190,13 @@ release_build() {
 		linux)
 			s3Os=Linux
 			;;
+		windows)
+			s3Os=Windows
+			binary+='.exe'
+			if [ "$latestBase" ]; then
+				latestBase+='.exe'
+			fi
+			;;
 		*)
 			echo >&2 "error: can't convert $s3Os to an appropriate value for 'uname -s'"
 			exit 1
@@ -292,7 +299,7 @@ fi
 echo deb $(s3_url)/ubuntu docker main > /etc/apt/sources.list.d/docker.list
 
 # Then import the repository key
-apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys $gpgFingerprint
+apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys $gpgFingerprint
 
 # Install docker
 apt-get update
