@@ -82,6 +82,13 @@ const (
 	LoNameSize       = C.LO_NAME_SIZE
 )
 
+const (
+	DmUdevDisableSubsystemRulesFlag = C.DM_UDEV_DISABLE_SUBSYSTEM_RULES_FLAG
+	DmUdevDisableDiskRulesFlag      = C.DM_UDEV_DISABLE_DISK_RULES_FLAG
+	DmUdevDisableOtherRulesFlag     = C.DM_UDEV_DISABLE_OTHER_RULES_FLAG
+	DmUdevDisableLibraryFallback    = C.DM_UDEV_DISABLE_LIBRARY_FALLBACK
+)
+
 var (
 	DmGetLibraryVersion    = dmGetLibraryVersionFct
 	DmGetNextTarget        = dmGetNextTargetFct
@@ -101,6 +108,9 @@ var (
 	DmTaskSetRo            = dmTaskSetRoFct
 	DmTaskSetSector        = dmTaskSetSectorFct
 	DmUdevWait             = dmUdevWaitFct
+	DmUdevSetSyncSupport   = dmUdevSetSyncSupportFct
+	DmUdevGetSyncSupport   = dmUdevGetSyncSupportFct
+	DmCookieSupported      = dmCookieSupportedFct
 	LogWithErrnoInit       = logWithErrnoInitFct
 )
 
@@ -225,8 +235,20 @@ func dmGetNextTargetFct(task *CDmTask, next uintptr, start, length *uint64, targ
 	return uintptr(nextp)
 }
 
+func dmUdevSetSyncSupportFct(syncWithUdev int) {
+	(C.dm_udev_set_sync_support(C.int(syncWithUdev)))
+}
+
+func dmUdevGetSyncSupportFct() int {
+	return int(C.dm_udev_get_sync_support())
+}
+
 func dmUdevWaitFct(cookie uint) int {
 	return int(C.dm_udev_wait(C.uint32_t(cookie)))
+}
+
+func dmCookieSupportedFct() int {
+	return int(C.dm_cookie_supported())
 }
 
 func dmLogInitVerboseFct(level int) {

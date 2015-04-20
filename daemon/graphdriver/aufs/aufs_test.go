@@ -11,12 +11,17 @@ import (
 
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/pkg/reexec"
 )
 
 var (
 	tmpOuter = path.Join(os.TempDir(), "aufs-tests")
 	tmp      = path.Join(tmpOuter, "aufs")
 )
+
+func init() {
+	reexec.Init()
+}
 
 func testInit(dir string, t *testing.T) graphdriver.Driver {
 	d, err := Init(dir, nil)
@@ -563,7 +568,7 @@ func TestStatus(t *testing.T) {
 		t.Fatal("Status should not be nil or empty")
 	}
 	rootDir := status[0]
-	dirs := status[1]
+	dirs := status[2]
 	if rootDir[0] != "Root Dir" {
 		t.Fatalf("Expected Root Dir got %s", rootDir[0])
 	}

@@ -2,11 +2,11 @@ page_title: Registry API
 page_description: API Documentation for Docker Registry
 page_keywords: API, Docker, index, registry, REST, documentation
 
-# Docker Registry API
+# Docker Registry API v1
 
 ## Introduction
 
- - This is the REST API for the Docker Registry
+ - This is the REST API for the Docker Registry 1.0
  - It stores the images and the graph for a set of repositories
  - It does not have user accounts data
  - It has no notion of user accounts or authorization
@@ -14,9 +14,9 @@ page_keywords: API, Docker, index, registry, REST, documentation
    service using tokens
  - It supports different storage backends (S3, cloud files, local FS)
  - It doesn't have a local database
- - It will be open-sourced at some point
+ - The registry is open source: [Docker Registry](https://github.com/docker/docker-registry)
 
-We expect that there will be multiple registries out there. To help to
+ We expect that there will be multiple registries out there. To help to
 grasp the context, here are some examples of registries:
 
  - **sponsor registry**: such a registry is provided by a third-party
@@ -514,9 +514,15 @@ Search the Index given a search term. It accepts
 
 **Example request**:
 
-        GET /v1/search?q=search_term HTTP/1.1
+        GET /v1/search?q=search_term&page=1&n=25 HTTP/1.1
         Host: index.docker.io
         Accept: application/json
+
+Query Parameters:
+
+- **q** – what you want to search for
+- **n** - number of results you want returned per page (default: 25, min:1, max:100)
+- **page** - page number of results
 
 **Example response**:
 
@@ -524,18 +530,25 @@ Search the Index given a search term. It accepts
         Vary: Accept
         Content-Type: application/json
 
-        {"query":"search_term",
+        {"num_pages": 1,
           "num_results": 3,
           "results" : [
              {"name": "ubuntu", "description": "An ubuntu image..."},
              {"name": "centos", "description": "A centos image..."},
              {"name": "fedora", "description": "A fedora image..."}
-           ]
+           ],
+          "page_size": 25,
+          "query":"search_term",
+          "page": 1
          }
 
-Query Parameters:
-
-- **q** – what you want to search for
+Response Items:
+- **num_pages** - Total number of pages returned by query
+- **num_results** - Total number of results returned by query
+- **results** - List of results for the current page
+- **page_size** - How many results returned per page
+- **query** - Your search term
+- **page** - Current page number
 
 Status Codes:
 
