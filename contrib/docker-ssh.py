@@ -69,9 +69,9 @@ def run(cmd, *, input="", **kw):
     return out
 
 def run_err(cmd, *, input="", **kw):
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, **kw)
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kw)
     out, err = proc.communicate(input)
-    return err, proc.returncode
+    return out, proc.returncode
 
 def die(msg):
     sys.stderr.write("%s: %s\n" % (PROG, msg))
@@ -81,7 +81,7 @@ def list_images(docker_cmd):
     return run(docker_cmd + ["images", "-q", "--no-trunc", "-a"]).decode().splitlines()
 
 def push(session, images):
-    err, code = run_err(["docker", "save"])
+    err, code = run_err(["docker", "save", "--help"])
     excludes = list_images(session.cmd(["docker"])) if b"--exclude" in err else ()
 
     
@@ -95,7 +95,7 @@ def push(session, images):
     
 
 def pull(session, images):
-    err, code = run_err(session.cmd(["docker", "save"]))
+    err, code = run_err(session.cmd(["docker", "save", "--help"]))
     excludes = list_images(["docker"]) if b"--exclude" in err else ()
 
     cmd = "{ssh} docker save {exclude} {images} | tar tv".format(
@@ -127,6 +127,10 @@ def main():
 
 
     args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
 
     mo = re.match(r"(?:([^:@/\s]+)@)?([^:@/\s]+)(?::([^:@/\s]+))?$", args.remote, re.I)
     if not mo:
