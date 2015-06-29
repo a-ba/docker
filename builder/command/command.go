@@ -16,7 +16,6 @@ const (
 	Expose      = "expose"
 	Volume      = "volume"
 	User        = "user"
-	Insert      = "insert"
 	Bindcontext = "bindcontext"
 )
 
@@ -36,6 +35,5 @@ var Commands = map[string]struct{}{
 	Expose:      {},
 	Volume:      {},
 	User:        {},
-	Insert:      {},
 	Bindcontext: {},
 }
