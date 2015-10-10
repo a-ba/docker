@@ -5426,3 +5426,60 @@ func (s *DockerSuite) TestBuildRUNErrMsg(c *check.C) {
 		c.Fatalf("RUN doesn't have the correct output:\nGot:%s\nExpected:%s", out, exp)
 	}
 }
+
+func (s *DockerSuite) TestBuildBindcontext(c *check.C) {
+	name := "testbuildbindcontext"
+	defer deleteImages(name)
+	ctx, err := fakeContext(`FROM busybox
+BINDCONTEXT /context
+RUN [ -f /context/test_file ]
+RUN [ "$(sh /context/test_file)" = 'test!' ]`,
+		map[string]string{
+			"test_file": "echo 'test!'",
+		})
+	if err != nil {
+		c.Fatal(err)
+	}
+	if _, err := buildImageFromContext(name, ctx, true); err != nil {
+		c.Fatal(err)
+	}
+}
+
+func (s *DockerSuite) TestBuildBindcontextWithUpdates(c *check.C) {
+	name := "testbuildbindcontextwithupdates"
+	defer deleteImages(name)
+	ctx, err := fakeContext(`FROM busybox
+BINDCONTEXT /context
+RUN [ "$(cat /context/test_file)" = 1111 ]
+RUN echo "2222" > /context/test_file
+RUN [ "$(cat /context/test_file)" = 2222 ]`,
+		map[string]string{
+			"test_file": "1111",
+		})
+	if err != nil {
+		c.Fatal(err)
+	}
+	if _, err := buildImageFromContext(name, ctx, true); err != nil {
+		c.Fatal(err)
+	}
+}
+
+func (s *DockerSuite) TestBuildBindcontextMultipleTimes(c *check.C) {
+	name := "testbuildbindcontextmultipletimes"
+	defer deleteImages(name)
+	ctx, err := fakeContext(`FROM busybox
+BINDCONTEXT /context-first
+RUN [ "$(cat /context-first/test_file)" = 1111 ]
+BINDCONTEXT /context-second
+RUN [ ! -f /context-first/test_file ]
+RUN [ "$(cat /context-second/test_file)" = 1111 ]`,
+		map[string]string{
+			"test_file": "1111",
+		})
+	if err != nil {
+		c.Fatal(err)
+	}
+	if _, err := buildImageFromContext(name, ctx, true); err != nil {
+		c.Fatal(err)
+	}
+}

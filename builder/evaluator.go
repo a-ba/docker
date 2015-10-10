@@ -118,6 +118,7 @@ type Builder struct {
 	BuilderFlags   *BuilderFlags // current cmd's BuilderFlags - temporary
 	context        tarsum.TarSum // the context is a tarball that is uploaded by the client
 	contextPath    string        // the path of the temporary directory the local context is unpacked to (server side)
+	tmpVolumePath  string        // the path of the temporary external volume for /tmp
 	noBaseImage    bool          // indicates that this build does not start from any base image, but is being built from an empty file system.
 
 	// Set resource restrictions for build containers
@@ -138,6 +139,7 @@ type Builder struct {
 //
 // * call readContext() which will set up the temporary directory and unpack
 //   the context into it.
+// * initialize an external volume for /tmp
 // * read the dockerfile
 // * parse the dockerfile
 // * walk the parse tree and execute it by dispatching to handlers. If Remove
@@ -155,6 +157,21 @@ func (b *Builder) Run(context io.Reader) (string, error) {
 			logrus.Debugf("[BUILDER] failed to remove temporary context: %s", err)
 		}
 	}()
+
+	// TODO implement tmp-volume tests
+	err := b.initTmpVolume()
+	defer func() {
+		if b.tmpVolumePath != "" {
+			// TODO apply permissions of /tmp into the committed image
+
+			if err := os.RemoveAll(b.tmpVolumePath); err != nil {
+				logrus.Debugf("[BUILDER] failed to remove temporary volume: %s", err)
+			}
+		}
+	}()
+	if err != nil {
+		return "", err
+	}
 
 	if err := b.readDockerfile(); err != nil {
 		return "", err

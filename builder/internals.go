@@ -62,6 +62,20 @@ func (b *Builder) readContext(context io.Reader) error {
 	return nil
 }
 
+func (b *Builder) initTmpVolume() error {
+	var err error
+
+	b.tmpVolumePath = ""
+	b.tmpVolumePath, err = ioutil.TempDir("", "docker-build-tmp")
+	if err != nil {
+		return err
+	}
+
+	// TODO: use permissions from base image
+
+	return os.Chmod(b.tmpVolumePath, os.FileMode(0777) | os.ModeSticky)
+}
+
 func (b *Builder) commit(id string, autoCmd *runconfig.Command, comment string) error {
 	if b.disableCommit {
 		return nil
@@ -564,6 +578,9 @@ func (b *Builder) create() (*daemon.Container, error) {
 		NetworkMode:  "bridge",
 	}
 
+	// mount the tmp external volume
+	hostConfig.Binds = append(hostConfig.Binds, b.tmpVolumePath + ":/tmp")
+
 	config := *b.Config
 
 	// Create the container
@@ -657,7 +674,37 @@ func (b *Builder) addContext(container *daemon.Container, orig, dest string, dec
 		destExists = true
 		origPath   = path.Join(b.contextPath, orig)
 		destPath   string
+		rootPath   string
 	)
+
+	rootPath, err = container.GetResourcePath("/")
+	if err != nil {
+		return err
+	}
+
+	tmpPath := path.Join(rootPath, "tmp")
+	_, err = os.Stat(tmpPath)
+	if err != nil {
+		err = os.Mkdir(tmpPath, 0777)
+		if err != nil {
+			return err
+		}
+		err = os.Chmod(tmpPath, os.FileMode(0777) | os.ModeSticky)
+		if err != nil {
+			return err
+		}
+	}
+
+	// FIXME: very very ugly
+	err = syscall.Mount(b.tmpVolumePath, tmpPath, "bind", syscall.MS_BIND, "")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := syscall.Unmount(tmpPath, 0) ; err != nil {
+			logrus.Debugf("[BUILDER] failed to unmount dir: %s", err)
+		}
+	}()
 
 	destPath, err = container.GetResourcePath(dest)
 	if err != nil {
