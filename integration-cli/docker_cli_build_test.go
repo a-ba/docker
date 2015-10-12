@@ -5427,59 +5427,80 @@ func (s *DockerSuite) TestBuildRUNErrMsg(c *check.C) {
 	}
 }
 
-func (s *DockerSuite) TestBuildBindcontext(c *check.C) {
-	name := "testbuildbindcontext"
+func (s *DockerSuite) TestBuildTmpVolume(c *check.C) {
+	name := "testbuildtmpvolume"
 	defer deleteImages(name)
 	ctx, err := fakeContext(`FROM busybox
-BINDCONTEXT /context
-RUN [ -f /context/test_file ]
-RUN [ "$(sh /context/test_file)" = 'test!' ]`,
+ADD . /
+RUN sh /test_root
+RUN sh /tmp/test_tmp
+`,
 		map[string]string{
-			"test_file": "echo 'test!'",
+			"test_root":	"touch /test_root.create_root /tmp/test_root.create_tmp",
+			"tmp/test_tmp": "touch /test_tmp.create_root  /tmp/test_tmp.create_tmp",
 		})
 	if err != nil {
 		c.Fatal(err)
 	}
-	if _, err := buildImageFromContext(name, ctx, true); err != nil {
+	var image string
+	if image, err = buildImageFromContext(name, ctx, true); err != nil {
 		c.Fatal(err)
+	}
+
+	var out  string
+	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "run", "--rm", image, "sh", "-c", `
+ls /test_* /tmp/test_*
+set -e -x
+[ -f /test_root ]
+[ -f /test_root.create_root ]
+[ -f /test_tmp.create_root ]
+[ ! -e /tmp/test_tmp ]
+[ ! -e /tmp/test_tmp.create_tmp ]
+[ ! -e /tmp/test_root.create_tmp ]
+ls -ld /tmp | grep -q '^drwxrwxrwt .* root  *root '
+`))
+
+	if err != nil {
+		c.Fatal("failed to exclude the content of /tmp from the image\nerr=%v\nout=%v", err, out)
 	}
 }
 
-func (s *DockerSuite) TestBuildBindcontextWithUpdates(c *check.C) {
-	name := "testbuildbindcontextwithupdates"
+func (s *DockerSuite) TestBuildTmpVolumeBis(c *check.C) {
+	name := "testbuildtmpvolumebis"
 	defer deleteImages(name)
 	ctx, err := fakeContext(`FROM busybox
-BINDCONTEXT /context
-RUN [ "$(cat /context/test_file)" = 1111 ]
-RUN echo "2222" > /context/test_file
-RUN [ "$(cat /context/test_file)" = 2222 ]`,
+ADD . /tmp/
+RUN sh /tmp/test_root
+RUN sh /tmp/tmp/test_tmp
+`,
 		map[string]string{
-			"test_file": "1111",
+			"test_root":	"touch /test_root.create_root /tmp/test_root.create_tmp",
+			"tmp/test_tmp": "touch /test_tmp.create_root  /tmp/test_tmp.create_tmp",
 		})
 	if err != nil {
 		c.Fatal(err)
 	}
-	if _, err := buildImageFromContext(name, ctx, true); err != nil {
+	var image string
+	if image, err = buildImageFromContext(name, ctx, true); err != nil {
 		c.Fatal(err)
 	}
-}
 
-func (s *DockerSuite) TestBuildBindcontextMultipleTimes(c *check.C) {
-	name := "testbuildbindcontextmultipletimes"
-	defer deleteImages(name)
-	ctx, err := fakeContext(`FROM busybox
-BINDCONTEXT /context-first
-RUN [ "$(cat /context-first/test_file)" = 1111 ]
-BINDCONTEXT /context-second
-RUN [ ! -f /context-first/test_file ]
-RUN [ "$(cat /context-second/test_file)" = 1111 ]`,
-		map[string]string{
-			"test_file": "1111",
-		})
+	var out  string
+	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "run", "--rm", image, "sh", "-c", `
+ls /test_* /tmp/test_* /tmp/tmp
+set -e -x
+[ -f /test_root.create_root ]
+[ -f /test_tmp.create_root ]
+[ ! -e /test_root ]
+[ ! -e /tmp/test_tmp ]
+[ ! -e /tmp/test_root ]
+[ ! -e /tmp/test_tmp.create_tmp ]
+[ ! -e /tmp/test_root.create_tmp ]
+[ ! -e /tmp/tmp ]
+ls -ld /tmp | grep -q '^drwxrwxrwt .* root  *root '
+`))
+
 	if err != nil {
-		c.Fatal(err)
-	}
-	if _, err := buildImageFromContext(name, ctx, true); err != nil {
-		c.Fatal(err)
+		c.Fatal("failed to exclude the content of /tmp from the image\nerr=%v\nout=%v", err, out)
 	}
 }
