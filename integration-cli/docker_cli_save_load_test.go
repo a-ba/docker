@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"reflect"
 	"sort"
 	"strings"
@@ -304,13 +305,14 @@ func (s *DockerSuite) TestSavePartialAndLoad(c *check.C) {
 		deleteContainer(cleanedContainerID)
 		return imageID
 	}
+	regTags := regexp.MustCompile(`(?s)"Tags": \[[^][]*\]`)
 	inspectImage := func(img string) string {
 		inspectCmd := exec.Command(dockerBinary, "inspect", img)
 		result, _, err := runCommandWithOutput(inspectCmd)
 		if err != nil {
 			c.Fatalf("the image should exist: %v %v", img, err)
 		}
-		return result
+		return regTags.ReplaceAllLiteralString(result, `"Tags": []`)
 	}
 	saveImage := func(tag string, filename string, exclude string) {
 		saveCmdTemplate := `%v save -o %s -e %s %v`
