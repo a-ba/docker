@@ -11,7 +11,7 @@ weight = 4
 
 # Linking containers together
 
-In [the Using Docker section](/userguide/usingdocker), you saw how you can
+In [the Using Docker section](usingdocker.md), you saw how you can
 connect to a service running inside a Docker container via a network
 port. But a port connection is only one way you can interact with services and
 applications running inside Docker containers. In this section, we'll briefly revisit
@@ -20,7 +20,7 @@ container linking.
 
 ## Connect using network port mapping
 
-In [the Using Docker section](/userguide/usingdocker), you created a
+In [the Using Docker section](usingdocker.md), you created a
 container that ran a Python Flask application:
 
     $ docker run -d -P training/webapp python app.py
@@ -28,9 +28,9 @@ container that ran a Python Flask application:
 > **Note:** 
 > Containers have an internal network and an IP address
 > (as we saw when we used the `docker inspect` command to show the container's
-> IP address in the [Using Docker](/userguide/usingdocker/) section).
+> IP address in the [Using Docker](usingdocker.md) section).
 > Docker can have a variety of network configurations. You can see more
-> information on Docker networking [here](/articles/networking/).
+> information on Docker networking [here](../articles/networking.md).
 
 When that container was created, the `-P` flag was used to automatically map
 any network port inside it to a random high port within an *ephemeral port
@@ -49,6 +49,14 @@ container:
 
 And you saw why this isn't such a great idea because it constrains you to
 only one container on that specific port.
+
+Instead, you may specify a range of host ports to bind a container port to
+that is different than the default *ephemeral port range*:
+
+    $ docker run -d -p 8000-9000:5000 training/webapp python app.py
+
+This would bind port 5000 in the container to a randomly available port
+between 8000 and 9000 on the host.
 
 There are also a few other ways you can configure the `-p` flag. By
 default the `-p` flag will bind the specified port to all interfaces on
@@ -227,11 +235,11 @@ The components in this prefix are:
 Docker uses this prefix format to define three distinct environment variables:
 
 * The `prefix_ADDR` variable contains the IP Address from the URL, for
-example `WEBDB_PORT_8080_TCP_ADDR=172.17.0.82`.
+example `WEBDB_PORT_5432_TCP_ADDR=172.17.0.82`.
 * The `prefix_PORT` variable contains just the port number from the URL for
-example `WEBDB_PORT_8080_TCP_PORT=8080`.
+example `WEBDB_PORT_5432_TCP_PORT=5432`.
 * The `prefix_PROTO` variable contains just the protocol from the URL for
-example `WEBDB_PORT_8080_TCP_PROTO=tcp`.
+example `WEBDB_PORT_5432_TCP_PROTO=tcp`.
 
 If the container exposes multiple ports, an environment variable set is
 defined for each one. This means, for example, if a container exposes 4 ports
@@ -240,7 +248,7 @@ that Docker creates 12 environment variables, 3 for each port.
 Additionally, Docker creates an environment variable called `<alias>_PORT`.
 This variable contains the URL of the source container's first exposed port.
 The  'first' port is defined as the exposed port with the lowest number.
-For example, consider the `WEBDB_PORT=tcp://172.17.0.82:8080` variable.  If
+For example, consider the `WEBDB_PORT=tcp://172.17.0.82:5432` variable.  If
 that port is used for both tcp and udp, then the tcp one is specified.
 
 Finally, Docker also exposes each Docker originated environment variable
@@ -339,7 +347,7 @@ allowing linked communication to continue.
 # Next step
 
 Now that you know how to link Docker containers together, the next step is
-learning how to manage data, volumes and mounts inside your containers.
+learning how to take complete control over docker networking.
 
-Go to [Managing Data in Containers](/userguide/dockervolumes).
+Go to [Docker Networking](dockernetworks.md).
 

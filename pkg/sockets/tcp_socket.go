@@ -1,69 +1,48 @@
+// Package sockets provides helper functions to create and configure Unix or TCP
+// sockets.
 package sockets
 
 import (
 	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"io/ioutil"
 	"net"
-	"os"
+	"net/http"
+	"time"
 
 	"github.com/docker/docker/pkg/listenbuffer"
 )
 
-type TlsConfig struct {
-	CA          string
-	Certificate string
-	Key         string
-	Verify      bool
-}
-
-func NewTlsConfig(tlsCert, tlsKey, tlsCA string, verify bool) *TlsConfig {
-	return &TlsConfig{
-		Verify:      verify,
-		Certificate: tlsCert,
-		Key:         tlsKey,
-		CA:          tlsCA,
-	}
-}
-
-func NewTcpSocket(addr string, config *TlsConfig, activate <-chan struct{}) (net.Listener, error) {
+// NewTCPSocket creates a TCP socket listener with the specified address and
+// and the specified tls configuration. If TLSConfig is set, will encapsulate the
+// TCP listener inside a TLS one.
+// The channel passed is used to activate the listenbuffer when the caller is ready
+// to accept connections.
+func NewTCPSocket(addr string, tlsConfig *tls.Config, activate <-chan struct{}) (net.Listener, error) {
 	l, err := listenbuffer.NewListenBuffer("tcp", addr, activate)
 	if err != nil {
 		return nil, err
 	}
-	if config != nil {
-		if l, err = setupTls(l, config); err != nil {
-			return nil, err
-		}
+	if tlsConfig != nil {
+		tlsConfig.NextProtos = []string{"http/1.1"}
+		l = tls.NewListener(l, tlsConfig)
 	}
 	return l, nil
 }
 
-func setupTls(l net.Listener, config *TlsConfig) (net.Listener, error) {
-	tlsCert, err := tls.LoadX509KeyPair(config.Certificate, config.Key)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("Could not load X509 key pair (%s, %s): %v", config.Certificate, config.Key, err)
+// ConfigureTCPTransport configures the specified Transport according to the
+// specified proto and addr.
+// If the proto is unix (using a unix socket to communicate) the compression
+// is disabled.
+func ConfigureTCPTransport(tr *http.Transport, proto, addr string) {
+	// Why 32? See https://github.com/docker/docker/pull/8035.
+	timeout := 32 * time.Second
+	if proto == "unix" {
+		// No need for compression in local communications.
+		tr.DisableCompression = true
+		tr.Dial = func(_, _ string) (net.Conn, error) {
+			return net.DialTimeout(proto, addr, timeout)
 		}
-		return nil, fmt.Errorf("Error reading X509 key pair (%s, %s): %q. Make sure the key is encrypted.",
-			config.Certificate, config.Key, err)
+	} else {
+		tr.Proxy = http.ProxyFromEnvironment
+		tr.Dial = (&net.Dialer{Timeout: timeout}).Dial
 	}
-	tlsConfig := &tls.Config{
-		NextProtos:   []string{"http/1.1"},
-		Certificates: []tls.Certificate{tlsCert},
-		// Avoid fallback on insecure SSL protocols
-		MinVersion: tls.VersionTLS10,
-	}
-	if config.CA != "" {
-		certPool := x509.NewCertPool()
-		file, err := ioutil.ReadFile(config.CA)
-		if err != nil {
-			return nil, fmt.Errorf("Could not read CA certificate: %v", err)
-		}
-		certPool.AppendCertsFromPEM(file)
-		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-		tlsConfig.ClientCAs = certPool
-	}
-	return tls.NewListener(l, tlsConfig), nil
 }

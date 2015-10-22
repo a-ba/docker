@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"os/exec"
 	"strings"
 
 	"github.com/go-check/check"
@@ -44,11 +43,7 @@ func getExternalAddress(c *check.C) net.IP {
 }
 
 func getContainerLogs(c *check.C, containerID string) string {
-	runCmd := exec.Command(dockerBinary, "logs", containerID)
-	out, _, err := runCommandWithOutput(runCmd)
-	if err != nil {
-		c.Fatal(out, err)
-	}
+	out, _ := dockerCmd(c, "logs", containerID)
 	return strings.Trim(out, "\r\n")
 }
 
@@ -59,6 +54,7 @@ func getContainerStatus(c *check.C, containerID string) string {
 }
 
 func (s *DockerSuite) TestNetworkNat(c *check.C) {
+	testRequires(c, DaemonIsLinux)
 	testRequires(c, SameHostDaemon, NativeExecDriver)
 	msg := "it works"
 	startServerContainer(c, msg, 8080)
@@ -79,6 +75,7 @@ func (s *DockerSuite) TestNetworkNat(c *check.C) {
 }
 
 func (s *DockerSuite) TestNetworkLocalhostTCPNat(c *check.C) {
+	testRequires(c, DaemonIsLinux)
 	testRequires(c, SameHostDaemon, NativeExecDriver)
 	var (
 		msg = "hi yall"
@@ -100,16 +97,13 @@ func (s *DockerSuite) TestNetworkLocalhostTCPNat(c *check.C) {
 }
 
 func (s *DockerSuite) TestNetworkLoopbackNat(c *check.C) {
-	testRequires(c, SameHostDaemon, NativeExecDriver)
+	testRequires(c, DaemonIsLinux)
+	testRequires(c, SameHostDaemon, NativeExecDriver, NotUserNamespace)
 	msg := "it works"
 	startServerContainer(c, msg, 8080)
 	endpoint := getExternalAddress(c)
-	runCmd := exec.Command(dockerBinary, "run", "-t", "--net=container:server", "busybox",
+	out, _ := dockerCmd(c, "run", "-t", "--net=container:server", "busybox",
 		"sh", "-c", fmt.Sprintf("stty raw && nc -w 5 %s 8080", endpoint.String()))
-	out, _, err := runCommandWithOutput(runCmd)
-	if err != nil {
-		c.Fatal(out, err)
-	}
 	final := strings.TrimRight(string(out), "\n")
 	if final != msg {
 		c.Fatalf("Expected message %q but received %q", msg, final)

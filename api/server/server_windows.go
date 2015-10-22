@@ -6,48 +6,38 @@ import (
 	"errors"
 	"net"
 	"net/http"
-
-	"github.com/docker/docker/daemon"
 )
 
 // NewServer sets up the required Server and does protocol specific checking.
-func (s *Server) newServer(proto, addr string) (serverCloser, error) {
+func (s *Server) newServer(proto, addr string) ([]*HTTPServer, error) {
 	var (
-		err error
-		l   net.Listener
+		ls []net.Listener
 	)
 	switch proto {
 	case "tcp":
-		l, err = s.initTcpSocket(addr)
+		l, err := s.initTCPSocket(addr)
 		if err != nil {
 			return nil, err
 		}
+		ls = append(ls, l)
 
 	default:
 		return nil, errors.New("Invalid protocol format. Windows only supports tcp.")
 	}
-	return &HttpServer{
-		&http.Server{
-			Addr:    addr,
-			Handler: s.router,
-		},
-		l,
-	}, nil
-}
 
-func (s *Server) AcceptConnections(d *daemon.Daemon) {
-	s.daemon = d
-	// close the lock so the listeners start accepting connections
-	select {
-	case <-s.start:
-	default:
-		close(s.start)
+	var res []*HTTPServer
+	for _, l := range ls {
+		res = append(res, &HTTPServer{
+			&http.Server{
+				Addr: addr,
+			},
+			l,
+		})
 	}
+	return res, nil
+
 }
 
 func allocateDaemonPort(addr string) error {
 	return nil
-}
-
-func adjustCpuShares(version version.Version, hostConfig *runconfig.HostConfig) {
 }

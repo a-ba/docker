@@ -1,8 +1,19 @@
+<!--[metadata]>
++++
+title = "journald logging driver"
+description = "Describes how to use the fluentd logging driver."
+keywords = ["Fluentd, docker, logging, driver"]
+[menu.main]
+parent = "smn_logging"
+weight = 2
++++
+<![end-metadata]-->
+
 # Journald logging driver
 
 The `journald` logging driver sends container logs to the [systemd
 journal](http://www.freedesktop.org/software/systemd/man/systemd-journald.service.html).  Log entries can be retrieved using the `journalctl`
-command or through use of the journal API.
+command, through use of the journal API, or using the `docker logs` command.
 
 In addition to the text of the log message itself, the `journald` log
 driver stores the following metadata in the journal with each message:
@@ -24,6 +35,15 @@ You can set the logging driver for a specific container by using the
 `--log-driver` option to `docker run`:
 
     docker run --log-driver=journald ...
+
+## Options
+
+Users can use the `--log-opt NAME=VALUE` flag to specify additional
+journald logging driver options.
+
+### labels and env
+
+The `labels` and `env` options each take a comma-separated list of keys. If there is collision between `label` and `env` keys, the value of the `env` takes precedence. Both options add additional metadata in the journal with each message.
 
 ## Note regarding container names
 
@@ -63,4 +83,3 @@ logs:
 
     for msg in reader:
       print '{CONTAINER_ID_FULL}: {MESSAGE}'.format(**msg)
-

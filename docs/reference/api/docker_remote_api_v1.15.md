@@ -15,8 +15,7 @@ weight = 6
 
  - The Remote API has replaced `rcli`.
  - The daemon listens on `unix:///var/run/docker.sock` but you can
-   [Bind Docker to another host/port or a Unix socket](
-   /articles/basics/#bind-docker-to-another-hostport-or-a-unix-socket).
+   [Bind Docker to another host/port or a Unix socket](../../articles/basics.md#bind-docker-to-another-hostport-or-a-unix-socket).
  - The API tends to be REST, but for some complex commands, like `attach`
    or `pull`, the HTTP connection is hijacked to transport `STDOUT`,
    `STDIN` and `STDERR`.
@@ -43,6 +42,7 @@ List containers
         [
              {
                      "Id": "8dfafdbc3a40",
+                     "Names":["/boring_feynman"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 1",
                      "Created": 1367854155,
@@ -53,6 +53,7 @@ List containers
              },
              {
                      "Id": "9cd87474be90",
+                     "Names":["/coolName"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 222222",
                      "Created": 1367854155,
@@ -63,6 +64,7 @@ List containers
              },
              {
                      "Id": "3176a2479c92",
+                     "Names":["/sleepy_dog"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 3333333333333333",
                      "Created": 1367854154,
@@ -73,6 +75,7 @@ List containers
              },
              {
                      "Id": "4cb07b47f9fb",
+                     "Names":["/running_cat"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 444444444444444444444444444444444",
                      "Created": 1367854152,
@@ -195,7 +198,7 @@ Json Parameters:
 -   **StdinOnce** - Boolean value, close stdin after the 1 attached client disconnects.
 -   **Env** - A list of environment variables in the form of `VAR=value`
 -   **Cmd** - Command to run specified as a string or an array of strings.
--   **Entrypoint** - Set the entrypoint for the container a a string or an array
+-   **Entrypoint** - Set the entrypoint for the container a string or an array
       of strings
 -   **Image** - String value containing the image name to use for the container
 -   **Volumes** – An object mapping mountpoint paths (strings) inside the
@@ -736,8 +739,7 @@ Status Codes:
     **Stream details**:
 
     When using the TTY setting is enabled in
-    [`POST /containers/create`
-    ](/reference/api/docker_remote_api_v1.9/#create-a-container "POST /containers/create"),
+    [`POST /containers/create`](#create-a-container),
     the stream is the raw data from the process PTY and client's stdin.
     When the TTY is disabled, then the stream is multiplexed to separate
     stdout and stderr.
@@ -937,6 +939,7 @@ Query Parameters:
 -   **all** – 1/True/true or 0/False/false, default false
 -   **filters** – a json encoded value of the filters (a map[string][]string) to process on the images list. Available filters:
   -   dangling=true
+-   **filter** - only return images with the specified name
 
 ### Create an image
 
@@ -1253,7 +1256,7 @@ Build an image from Dockerfile via stdin
     The archive must include a file called `Dockerfile`
     at its root. It may include any number of other files,
     which will be accessible in the build context (See the [*ADD build
-    command*](/reference/builder/#dockerbuilder)).
+    command*](../../reference/builder.md#dockerbuilder)).
 
 Query Parameters:
 
@@ -1432,7 +1435,7 @@ Create a new image from a container's changes
 **Example response**:
 
         HTTP/1.1 201 Created
-        Content-Type: application/vnd.docker.raw-stream
+        Content-Type: application/json
 
         {"Id": "596069db4bf5"}
 
@@ -1672,7 +1675,7 @@ Json Parameters:
 
 Status Codes:
 
--   **201** – no error
+-   **200** – no error
 -   **404** – no such exec instance
 
     **Stream details**:

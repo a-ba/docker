@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -13,11 +12,10 @@ import (
 )
 
 func (s *DockerSuite) TestLogsApiWithStdout(c *check.C) {
+	testRequires(c, DaemonIsLinux)
 	out, _ := dockerCmd(c, "run", "-d", "-t", "busybox", "/bin/sh", "-c", "while true; do echo hello; sleep 1; done")
 	id := strings.TrimSpace(out)
-	if err := waitRun(id); err != nil {
-		c.Fatal(err)
-	}
+	c.Assert(waitRun(id), check.IsNil)
 
 	type logOut struct {
 		out string
@@ -28,7 +26,16 @@ func (s *DockerSuite) TestLogsApiWithStdout(c *check.C) {
 
 	go func() {
 		res, body, err := sockRequestRaw("GET", fmt.Sprintf("/containers/%s/logs?follow=1&stdout=1&timestamps=1", id), nil, "")
-		out, _ := bufio.NewReader(body).ReadString('\n')
+		if err != nil {
+			chLog <- logOut{"", nil, err}
+			return
+		}
+		defer body.Close()
+		out, err := bufio.NewReader(body).ReadString('\n')
+		if err != nil {
+			chLog <- logOut{"", nil, err}
+			return
+		}
 		chLog <- logOut{strings.TrimSpace(out), res, err}
 	}()
 
@@ -45,11 +52,9 @@ func (s *DockerSuite) TestLogsApiWithStdout(c *check.C) {
 }
 
 func (s *DockerSuite) TestLogsApiNoStdoutNorStderr(c *check.C) {
+	testRequires(c, DaemonIsLinux)
 	name := "logs_test"
-	runCmd := exec.Command(dockerBinary, "run", "-d", "-t", "--name", name, "busybox", "/bin/sh")
-	if out, _, err := runCommandWithOutput(runCmd); err != nil {
-		c.Fatal(out, err)
-	}
+	dockerCmd(c, "run", "-d", "-t", "--name", name, "busybox", "/bin/sh")
 
 	status, body, err := sockRequest("GET", fmt.Sprintf("/containers/%s/logs", name), nil)
 	c.Assert(status, check.Equals, http.StatusBadRequest)
@@ -63,21 +68,24 @@ func (s *DockerSuite) TestLogsApiNoStdoutNorStderr(c *check.C) {
 
 // Regression test for #12704
 func (s *DockerSuite) TestLogsApiFollowEmptyOutput(c *check.C) {
+	testRequires(c, DaemonIsLinux)
 	name := "logs_test"
 	t0 := time.Now()
-	runCmd := exec.Command(dockerBinary, "run", "-d", "-t", "--name", name, "busybox", "sleep", "10")
-	if out, _, err := runCommandWithOutput(runCmd); err != nil {
-		c.Fatal(out, err)
-	}
+	dockerCmd(c, "run", "-d", "-t", "--name", name, "busybox", "sleep", "10")
 
 	_, body, err := sockRequestRaw("GET", fmt.Sprintf("/containers/%s/logs?follow=1&stdout=1&stderr=1&tail=all", name), bytes.NewBuffer(nil), "")
 	t1 := time.Now()
+	c.Assert(err, check.IsNil)
 	body.Close()
-	if err != nil {
-		c.Fatal(err)
-	}
 	elapsed := t1.Sub(t0).Seconds()
 	if elapsed > 5.0 {
 		c.Fatalf("HTTP response was not immediate (elapsed %.1fs)", elapsed)
 	}
+}
+
+func (s *DockerSuite) TestLogsAPIContainerNotFound(c *check.C) {
+	name := "nonExistentContainer"
+	resp, _, err := sockRequestRaw("GET", fmt.Sprintf("/containers/%s/logs?follow=1&stdout=1&stderr=1&tail=all", name), bytes.NewBuffer(nil), "")
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
 }

@@ -26,9 +26,15 @@ if [ -n "$DOCKER_STORAGE_OPTS" ]; then
 	unset IFS
 fi
 
+# example usage: DOCKER_STORAGE_OPTS="dm.basesize=20G,dm.loopdatasize=200G"
+extra_params=""
+if [ "$DOCKER_REMAP_ROOT" ]; then
+	extra_params="--userns-remap $DOCKER_REMAP_ROOT"
+fi
+
 if [ -z "$DOCKER_TEST_HOST" ]; then
 	# Start apparmor if it is enabled
-	if [ "$(cat /sys/module/apparmor/parameters/enabled)" == "Y" ]; then
+	if [ -e "/sys/module/apparmor/parameters/enabled" ] && [ "$(cat /sys/module/apparmor/parameters/enabled)" == "Y" ]; then
 		# reset container variable so apparmor profile is applied to process
 		# see https://github.com/docker/libcontainer/blob/master/apparmor/apparmor.go#L16
 		export container=""
@@ -40,22 +46,24 @@ if [ -z "$DOCKER_TEST_HOST" ]; then
 
 	export DOCKER_HOST="unix://$(cd "$DEST" && pwd)/docker.sock" # "pwd" tricks to make sure $DEST is an absolute path, not a relative one
 	( set -x; exec \
-		docker --daemon --debug \
+		docker daemon --debug \
 		--host "$DOCKER_HOST" \
 		--storage-driver "$DOCKER_GRAPHDRIVER" \
 		--exec-driver "$DOCKER_EXECDRIVER" \
 		--pidfile "$DEST/docker.pid" \
 		--userland-proxy="$DOCKER_USERLANDPROXY" \
 		$storage_params \
+		$extra_params \
 			&> "$DEST/docker.log"
 	) &
-	trap "source '${MAKEDIR}/.integration-daemon-stop'" EXIT # make sure that if the script exits unexpectedly, we stop this daemon we just started
+	# make sure that if the script exits unexpectedly, we stop this daemon we just started
+	trap 'bundle .integration-daemon-stop' EXIT
 else
 	export DOCKER_HOST="$DOCKER_TEST_HOST"
 fi
 
-# give it a second to come up so it's "ready"
-tries=10
+# give it a little time to come up so it's "ready"
+tries=30
 while ! docker version &> /dev/null; do
 	(( tries-- ))
 	if [ $tries -le 0 ]; then

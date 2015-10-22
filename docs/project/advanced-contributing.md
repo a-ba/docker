@@ -54,7 +54,7 @@ A design proposal solves a problem or adds a feature to the Docker software.
 The process for submitting design proposals requires two pull requests, one
 for the design and one for the implementation.
 
-![Simple process](/project/images/proposal.png)
+![Simple process](images/proposal.png)
 
 The important thing to notice is that both the design pull request and the
 implementation pull request go through a review. In other words, there is
@@ -154,6 +154,6 @@ Making a pull request with a design proposal simplifies this process:
 * you can leave comments on specific design proposal line
 * replies around line are easy to track
 * as a proposal changes and is updated, pages reset as line items resolve
-* Github maintains the entire history
+* GitHub maintains the entire history
 
 While proposals in pull requests do not end up merged into a master repository, they provide a convenient tool for managing the design process.

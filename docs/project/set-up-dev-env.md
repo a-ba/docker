@@ -22,19 +22,19 @@ You use the `docker` repository and its `Dockerfile` to create a Docker image,
 run a Docker container, and develop code in the container. Docker itself builds,
 tests, and releases new Docker versions using this container.
 
-If you followed the procedures that <a href="/project/set-up-git" target="_blank">
+If you followed the procedures that <a href="/engine/project/set-up-git" target="_blank">
 set up Git for contributing</a>, you should have a fork of the `docker/docker`
 repository. You also created a branch called `dry-run-test`. In this section,
 you continue working with your fork on this branch.
 
 ##  Clean your host of Docker artifacts
 
-Docker developers run the latest stable release of the Docker software (with Boot2Docker if their machine is Mac OS X). They clean their local
+Docker developers run the latest stable release of the Docker software (with Docker Machine if their machine is Mac OS X). They clean their local
 hosts of unnecessary Docker artifacts such as stopped containers or unused
 images. Cleaning unnecessary artifacts isn't strictly necessary, but it is
 good practice, so it is included here.
 
-To remove unnecessary artifacts,
+To remove unnecessary artifacts:
 
 1. Verify that you have no unnecessary containers running on your host.
 
@@ -96,16 +96,16 @@ environment.
 
 1. Open a terminal.
 
-    Mac users, use `boot2docker status` to make sure Boot2Docker is running. You
-    may need to run `eval "$(boot2docker shellinit)"` to initialize your shell
-    environment.
+    Mac users, use `docker-machine status your_vm_name` to make sure your VM is running. You
+    may need to run `eval "$(docker-machine env your_vm_name)"` to initialize your
+    shell environment.
 
 3. Change into the root of your forked repository.
 
         $ cd ~/repos/docker-fork 
         
 	If you are following along with this guide, you created a `dry-run-test`
-	branch when you <a href="/project/set-up-git" target="_blank"> set up Git for
+	branch when you <a href="/engine/project/set-up-git" target="_blank"> set up Git for
 	contributing</a>.
 
 4. Ensure you are on your `dry-run-test` branch.
@@ -193,7 +193,7 @@ environment.
     Keeping the ancestor images improves the build performance. When you rebuild
     the child image, the build process uses the local ancestors rather than
     retrieving them from the Hub. The build process gets new ancestors only if
-    DockerHub has updated versions.
+    Docker Hub has updated versions.
 
 ## Start a container and run a test
 
@@ -205,10 +205,10 @@ build and run a `docker` binary in your container.
 
     At this point, you'll have about three terminals open.
 
-    ![Multiple terminals](/project/images/three_terms.png)
+    ![Multiple terminals](images/three_terms.png)
 
-    Mac OS X users, make sure you run `eval "$(boot2docker shellinit)"` in any new
-    terminals.
+    Mac OS X users, make sure you run `eval "$(docker-machine env your_vm_name)"` in
+    any new terminals.
 
 2. In a terminal, create a new container from your `dry-run-test` image.
 
@@ -226,7 +226,7 @@ build and run a `docker` binary in your container.
     `/go/src/github.com/docker/docker` directory. Try listing the contents to
     verify they are the same as that of your `docker-fork` repo.
 
-    ![List example](/project/images/list_example.png)
+    ![List example](images/list_example.png)
 
 
 3. Investigate your container bit. 
@@ -285,9 +285,9 @@ with the `make.sh` script.
 
 8. Start a `docker` daemon running inside your container.
 
-        root@5f8630b873fe:/go/src/github.com/docker/docker#  docker -dD
+        root@5f8630b873fe:/go/src/github.com/docker/docker#  docker daemon -D
 
-    The `-dD` flag starts the daemon in debug mode. You'll find this useful
+    The `-D` flag starts the daemon in debug mode. You'll find this useful
     when debugging your code.
 
 9. Bring up one of the terminals on your local host.
@@ -336,7 +336,7 @@ with the `make.sh` script.
     You should see the image load and return. Meanwhile, you
     can see the calls made via the debug session in your other terminal.
 
-    ![List example](/project/images/three_running.png)
+    ![List example](images/three_running.png)
 
 
 ## Restart a container with your source
@@ -411,7 +411,7 @@ onto the `/go` directory inside the container.
 
     * copy the binary inside the development container using
       `cp bundles/1.5.0-dev/binary/docker /usr/bin`
-    * start `docker -dD` to launch the Docker daemon inside the container
+    * start `docker daemon -D` to launch the Docker daemon inside the container
     * run `docker ps` on local host to get the development container's name
     * connect to your running container `docker exec -it container_name bash`
     * use the `docker run hello-world` command to create and run a container 
@@ -423,4 +423,4 @@ Congratulations, you have successfully achieved Docker inception. At this point,
 you've set up your development environment and verified almost all the essential
 processes you need to contribute. Of course, before you start contributing, 
 [you'll need to learn one more piece of the development environment, the test
-framework](/project/test-and-docs/).
+framework](test-and-docs.md).

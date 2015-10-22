@@ -13,13 +13,14 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/docker/distribution/registry/api/errcode"
 	"github.com/docker/docker/autogen/dockerversion"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/fileutils"
 	"github.com/docker/docker/pkg/stringid"
 )
 
-// Figure out the absolute path of our own binary (if it's still around).
+// SelfPath figures out the absolute path of our own binary (if it's still around).
 func SelfPath() string {
 	path, err := exec.LookPath(os.Args[0])
 	if err != nil {
@@ -79,7 +80,7 @@ func isValidDockerInitPath(target string, selfPath string) bool { // target and 
 	return dockerversion.INITSHA1 != "" && dockerInitSha1(target) == dockerversion.INITSHA1
 }
 
-// Figure out the path of our dockerinit (which may be SelfPath())
+// DockerInitPath figures out the path of our dockerinit (which may be SelfPath())
 func DockerInitPath(localCopy string) string {
 	selfPath := SelfPath()
 	if isValidDockerInitPath(selfPath, selfPath) {
@@ -127,7 +128,7 @@ var globalTestID string
 // new directory.
 func TestDirectory(templateDir string) (dir string, err error) {
 	if globalTestID == "" {
-		globalTestID = stringid.GenerateRandomID()[:4]
+		globalTestID = stringid.GenerateNonCryptoID()[:4]
 	}
 	prefix := fmt.Sprintf("docker-test%s-%s-", globalTestID, GetCallerName(2))
 	if prefix == "" {
@@ -157,7 +158,7 @@ func GetCallerName(depth int) string {
 	return callerShortName
 }
 
-// ReplaceOrAppendValues returns the defaults with the overrides either
+// ReplaceOrAppendEnvValues returns the defaults with the overrides either
 // replaced by env key or appended to the list
 func ReplaceOrAppendEnvValues(defaults, overrides []string) []string {
 	cache := make(map[string]int, len(defaults))
@@ -199,9 +200,13 @@ func ReplaceOrAppendEnvValues(defaults, overrides []string) []string {
 // can be read and returns an error if some files can't be read
 // symlinks which point to non-existing files don't trigger an error
 func ValidateContextDirectory(srcPath string, excludes []string) error {
-	return filepath.Walk(filepath.Join(srcPath, "."), func(filePath string, f os.FileInfo, err error) error {
+	contextRoot, err := getContextRoot(srcPath)
+	if err != nil {
+		return err
+	}
+	return filepath.Walk(contextRoot, func(filePath string, f os.FileInfo, err error) error {
 		// skip this directory/file if it's not in the path, it won't get added to the context
-		if relFilePath, err := filepath.Rel(srcPath, filePath); err != nil {
+		if relFilePath, err := filepath.Rel(contextRoot, filePath); err != nil {
 			return err
 		} else if skip, err := fileutils.Matches(relFilePath, excludes); err != nil {
 			return err
@@ -239,20 +244,14 @@ func ValidateContextDirectory(srcPath string, excludes []string) error {
 	})
 }
 
-// Reads a .dockerignore file and returns the list of file patterns
+// ReadDockerIgnore reads a .dockerignore file and returns the list of file patterns
 // to ignore. Note this will trim whitespace from each line as well
 // as use GO's "clean" func to get the shortest/cleanest path for each.
-func ReadDockerIgnore(path string) ([]string, error) {
-	// Note that a missing .dockerignore file isn't treated as an error
-	reader, err := os.Open(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("Error reading '%s': %v", path, err)
-		}
+func ReadDockerIgnore(reader io.ReadCloser) ([]string, error) {
+	if reader == nil {
 		return nil, nil
 	}
 	defer reader.Close()
-
 	scanner := bufio.NewScanner(reader)
 	var excludes []string
 
@@ -264,8 +263,8 @@ func ReadDockerIgnore(path string) ([]string, error) {
 		pattern = filepath.Clean(pattern)
 		excludes = append(excludes, pattern)
 	}
-	if err = scanner.Err(); err != nil {
-		return nil, fmt.Errorf("Error reading '%s': %v", path, err)
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("Error reading .dockerignore: %v", err)
 	}
 	return excludes, nil
 }
@@ -285,4 +284,23 @@ func ImageReference(repo, ref string) string {
 // is of the form <algorithm>:<digest>.
 func DigestReference(ref string) bool {
 	return strings.Contains(ref, ":")
+}
+
+// GetErrorMessage returns the human readable message associated with
+// the passed-in error. In some cases the default Error() func returns
+// something that is less than useful so based on its types this func
+// will go and get a better piece of text.
+func GetErrorMessage(err error) string {
+	switch err.(type) {
+	case errcode.Error:
+		e, _ := err.(errcode.Error)
+		return e.Message
+
+	case errcode.ErrorCode:
+		ec, _ := err.(errcode.ErrorCode)
+		return ec.Message()
+
+	default:
+		return err.Error()
+	}
 }

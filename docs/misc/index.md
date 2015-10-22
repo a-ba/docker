@@ -73,7 +73,7 @@ Docker consists of:
 
 ## About this guide
 
-The [Understanding Docker section](introduction/understanding-docker.md) will help you:
+The [Understanding Docker section](../introduction/understanding-docker.md) will help you:
 
  - See how Docker works at a high level
  - Understand the architecture of Docker
@@ -83,19 +83,34 @@ The [Understanding Docker section](introduction/understanding-docker.md) will he
 
 ### Installation guides
 
-The [installation section](/installation/#installation) will show you how to
-install Docker on a variety of platforms.
+The [installation section](../installation) will show you how to install Docker
+on a variety of platforms.
 
 
 ### Docker user guide
 
 To learn about Docker in more detail and to answer questions about usage and
-implementation, check out the [Docker User Guide](/userguide/).
+implementation, check out the [Docker User Guide](../userguide/).
 
 ## Release notes
 
 A summary of the changes in each release in the current series can now be found
-on the separate [Release Notes page](/release-notes/)
+on the separate [Release Notes page](https://docs.docker.com/release-notes)
+
+## Feature Deprecation Policy
+
+As changes are made to Docker there may be times when existing features
+will need to be removed or replaced with newer features. Before an existing
+feature is removed it will be labeled as "deprecated" within the documentation
+and will remain in Docker for, usually, at least 2 releases. After that time
+it may be removed.
+
+Users are expected to take note of the list of deprecated features each
+release and plan their migration away from those features, and (if applicable)
+towards the replacement features as soon as possible.
+
+The complete list of deprecated features can be found on the
+[Deprecated Features page](deprecated.md).
 
 ## Licensing
 

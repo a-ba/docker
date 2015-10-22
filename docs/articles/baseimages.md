@@ -10,8 +10,7 @@ parent = "smn_images"
 
 # Create a base image
 
-So you want to create your own [*Base Image*](
-/terms/image/#base-image)? Great!
+So you want to create your own [*Base Image*](../reference/glossary.md#base-image)? Great!
 
 The specific process will depend heavily on the Linux distribution you
 want to package. We have some examples below, and you are encouraged to
@@ -47,28 +46,25 @@ GitHub Repo:
  - [Debian / Ubuntu](
    https://github.com/docker/docker/blob/master/contrib/mkimage-debootstrap.sh)
 
-## Creating a simple base image using `scratch`
+## Creating a simple base image using scratch
 
-There is a special repository in the Docker registry called `scratch`, which
-was created using an empty tar file:
+You can use Docker's reserved, minimal image, `scratch`, as a starting point for building containers. Using the `scratch` "image" signals to the build process that you want the next command in the `Dockerfile` to be the first filesystem layer in your image.
 
-    $ tar cv --files-from /dev/null | docker import - scratch
-
-which you can `docker pull`. You can then use that
-image to base your new minimal containers `FROM`:
+While `scratch` appears in Docker's repository on the hub, you can't pull it, run it, or tag any image with the name `scratch`. Instead, you can refer to it in your `Dockerfile`. For example, to create a minimal container using `scratch`:
 
     FROM scratch
-    COPY true-asm /true
-    CMD ["/true"]
+    ADD hello /
+    CMD ["/hello"]
 
-The `Dockerfile` above is from an extremely minimal image - [tianon/true](
-https://github.com/tianon/dockerfiles/tree/master/true).
+This example creates the hello-world image used in the tutorials.
+If you want to test it out, you can clone [the image repo](https://github.com/docker-library/hello-world)
+
 
 ## More resources
 
 There are lots more resources available to help you write your 'Dockerfile`.
 
-* There's a [complete guide to all the instructions](/reference/builder/) available for use in a `Dockerfile` in the reference section.
+* There's a [complete guide to all the instructions](../reference/builder.md) available for use in a `Dockerfile` in the reference section.
 * To help you write a clear, readable, maintainable `Dockerfile`, we've also
-written a [`Dockerfile` Best Practices guide](/articles/dockerfile_best-practices).
-* If your goal is to create a new Official Repository, be sure to read up on Docker's [Official Repositories](/docker-hub/official_repos/).
+written a [`Dockerfile` Best Practices guide](dockerfile_best-practices.md).
+* If your goal is to create a new Official Repository, be sure to read up on Docker's [Official Repositories](https://docs.docker.com/docker-hub/official_repos/).

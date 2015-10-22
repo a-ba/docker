@@ -37,7 +37,7 @@ runtime:
 ## Check kernel dependencies
 
 Docker in daemon mode has specific kernel requirements. For details,
-check your distribution in [*Installation*](../#installation-list).
+check your distribution in [*Installation*](../installation#installation-list).
 
 A 3.10 Linux kernel is the minimum requirement for Docker.
 Kernels older than 3.10 lack some of the features required to run Docker
@@ -94,7 +94,7 @@ To set the file's execute bit on Linux and OS X:
 
     $ chmod +x docker
 
-To get the list of stable release version numbers from Github, view the
+To get the list of stable release version numbers from GitHub, view the
 `docker/docker` [releases page](https://github.com/docker/docker/releases). 
 
 > **Note**
@@ -174,7 +174,7 @@ For example:
 ## Run the Docker daemon
 
     # start the docker in daemon mode from the directory you unpacked
-    $ sudo ./docker -d &
+    $ sudo ./docker daemon &
 
 ## Giving non-root access
 
@@ -192,8 +192,7 @@ need to add `sudo` to all the client commands.
 
 > **Warning**: 
 > The *docker* group (or the group specified with `-G`) is root-equivalent;
-> see [*Docker Daemon Attack Surface*](
-> /articles/security/#docker-daemon-attack-surface) details.
+> see [*Docker Daemon Attack Surface*](../articles/security.md#docker-daemon-attack-surface) details.
 
 ## Upgrades
 
@@ -212,4 +211,4 @@ Then follow the regular installation steps.
     # run a container and open an interactive shell in the container
     $ sudo ./docker run -i -t ubuntu /bin/bash
 
-Continue with the [User Guide](/userguide/).
+Continue with the [User Guide](../userguide).

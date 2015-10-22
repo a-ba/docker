@@ -6,28 +6,32 @@ import (
 	"strings"
 )
 
-// TODO(stevvooe): Move these definitions back to an exported package. While
-// they are used with v2 definitions, their relevance expands beyond.
-// "distribution/names" is a candidate package.
+// TODO(stevvooe): Move these definitions to the future "reference" package.
+// While they are used with v2 definitions, their relevance expands beyond.
 
 const (
-	// RepositoryNameComponentMinLength is the minimum number of characters in a
-	// single repository name slash-delimited component
-	RepositoryNameComponentMinLength = 2
-
-	// RepositoryNameMinComponents is the minimum number of slash-delimited
-	// components that a repository name must have
-	RepositoryNameMinComponents = 1
-
 	// RepositoryNameTotalLengthMax is the maximum total number of characters in
 	// a repository name
 	RepositoryNameTotalLengthMax = 255
 )
 
+// domainLabelRegexp represents the following RFC-2396 BNF construct:
+//   domainlabel   = alphanum | alphanum *( alphanum | "-" ) alphanum
+var domainLabelRegexp = regexp.MustCompile(`[a-z0-9](?:-*[a-z0-9])*`)
+
 // RepositoryNameComponentRegexp restricts registry path component names to
-// start with at least one letter or number, with following parts able to
-// be separated by one period, dash or underscore.
-var RepositoryNameComponentRegexp = regexp.MustCompile(`[a-z0-9]+(?:[._-][a-z0-9]+)*`)
+// the allow valid hostnames according to: https://www.ietf.org/rfc/rfc2396.txt
+// with the following differences:
+//  1) It DOES NOT allow for fully-qualified domain names, which include a
+//    trailing '.', e.g. "google.com."
+//  2) It DOES NOT restrict 'top-level' domain labels to start with just alpha
+//    characters.
+//  3) It DOES allow for underscores to appear in the same situations as dots.
+//
+// RFC-2396 uses the BNF construct:
+//   hostname      = *( domainlabel "." ) toplabel [ "." ]
+var RepositoryNameComponentRegexp = regexp.MustCompile(
+	domainLabelRegexp.String() + `(?:[._]` + domainLabelRegexp.String() + `)*`)
 
 // RepositoryNameComponentAnchoredRegexp is the version of
 // RepositoryNameComponentRegexp which must completely match the content
@@ -40,17 +44,13 @@ var RepositoryNameRegexp = regexp.MustCompile(`(?:` + RepositoryNameComponentReg
 // TagNameRegexp matches valid tag names. From docker/docker:graph/tags.go.
 var TagNameRegexp = regexp.MustCompile(`[\w][\w.-]{0,127}`)
 
-// TODO(stevvooe): Contribute these exports back to core, so they are shared.
+// TagNameAnchoredRegexp matches valid tag names, anchored at the start and
+// end of the matched string.
+var TagNameAnchoredRegexp = regexp.MustCompile("^" + TagNameRegexp.String() + "$")
 
 var (
-	// ErrRepositoryNameComponentShort is returned when a repository name
-	// contains a component which is shorter than
-	// RepositoryNameComponentMinLength
-	ErrRepositoryNameComponentShort = fmt.Errorf("repository name component must be %v or more characters", RepositoryNameComponentMinLength)
-
-	// ErrRepositoryNameMissingComponents is returned when a repository name
-	// contains fewer than RepositoryNameMinComponents components
-	ErrRepositoryNameMissingComponents = fmt.Errorf("repository name must have at least %v components", RepositoryNameMinComponents)
+	// ErrRepositoryNameEmpty is returned for empty, invalid repository names.
+	ErrRepositoryNameEmpty = fmt.Errorf("repository name must have at least one component")
 
 	// ErrRepositoryNameLong is returned when a repository name is longer than
 	// RepositoryNameTotalLengthMax
@@ -76,21 +76,17 @@ var (
 // The result of the production, known as the "namespace", should be limited
 // to 255 characters.
 func ValidateRepositoryName(name string) error {
+	if name == "" {
+		return ErrRepositoryNameEmpty
+	}
+
 	if len(name) > RepositoryNameTotalLengthMax {
 		return ErrRepositoryNameLong
 	}
 
 	components := strings.Split(name, "/")
 
-	if len(components) < RepositoryNameMinComponents {
-		return ErrRepositoryNameMissingComponents
-	}
-
 	for _, component := range components {
-		if len(component) < RepositoryNameComponentMinLength {
-			return ErrRepositoryNameComponentShort
-		}
-
 		if !RepositoryNameComponentAnchoredRegexp.MatchString(component) {
 			return ErrRepositoryNameComponentInvalid
 		}

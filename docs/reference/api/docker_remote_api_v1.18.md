@@ -15,8 +15,7 @@ weight = 3
 
  - The Remote API has replaced `rcli`.
  - The daemon listens on `unix:///var/run/docker.sock` but you can
-   [Bind Docker to another host/port or a Unix socket](
-   /articles/basics/#bind-docker-to-another-hostport-or-a-unix-socket).
+   [Bind Docker to another host/port or a Unix socket](../../articles/basics.md#bind-docker-to-another-hostport-or-a-unix-socket).
  - The API tends to be REST, but for some complex commands, like `attach`
    or `pull`, the HTTP connection is hijacked to transport `STDOUT`,
    `STDIN` and `STDERR`.
@@ -43,41 +42,53 @@ List containers
         [
              {
                      "Id": "8dfafdbc3a40",
+                     "Names":["/boring_feynman"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 1",
                      "Created": 1367854155,
                      "Status": "Exit 0",
                      "Ports": [{"PrivatePort": 2222, "PublicPort": 3333, "Type": "tcp"}],
+                     "Labels": {
+                             "com.example.vendor": "Acme",
+                             "com.example.license": "GPL",
+                             "com.example.version": "1.0"
+                     },
                      "SizeRw": 12288,
                      "SizeRootFs": 0
              },
              {
                      "Id": "9cd87474be90",
+                     "Names":["/coolName"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 222222",
                      "Created": 1367854155,
                      "Status": "Exit 0",
                      "Ports": [],
+                     "Labels": {},
                      "SizeRw": 12288,
                      "SizeRootFs": 0
              },
              {
                      "Id": "3176a2479c92",
+                     "Names":["/sleepy_dog"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 3333333333333333",
                      "Created": 1367854154,
                      "Status": "Exit 0",
                      "Ports":[],
+                     "Labels": {},
                      "SizeRw":12288,
                      "SizeRootFs":0
              },
              {
                      "Id": "4cb07b47f9fb",
+                     "Names":["/running_cat"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 444444444444444444444444444444444",
                      "Created": 1367854152,
                      "Status": "Exit 0",
                      "Ports": [],
+                     "Labels": {},
                      "SizeRw": 12288,
                      "SizeRootFs": 0
              }
@@ -98,7 +109,7 @@ Query Parameters:
 -   **filters** - a json encoded value of the filters (a map[string][]string) to process on the containers list. Available filters:
   -   exited=&lt;int&gt; -- containers with exit code of &lt;int&gt;
   -   status=(restarting|running|paused|exited)
-  -   label=`key` or `key=value` of a container label
+  -   label=`key` or `label="key=value"` of a container label
 
 Status Codes:
 
@@ -181,7 +192,7 @@ Create a container
         Content-Type: application/json
 
         {
-             "Id":"e90e34656806"
+             "Id":"e90e34656806",
              "Warnings":[]
         }
 
@@ -208,7 +219,7 @@ Json Parameters:
 -   **Env** - A list of environment variables in the form of `VAR=value`
 -   **Labels** - Adds a map of labels that to a container. To specify a map: `{"key":"value"[,"key2":"value2"]}`
 -   **Cmd** - Command to run specified as a string or an array of strings.
--   **Entrypoint** - Set the entrypoint for the container a a string or an array
+-   **Entrypoint** - Set the entrypoint for the container a string or an array
       of strings
 -   **Image** - String value containing the image name to use for the container
 -   **Volumes** – An object mapping mountpoint paths (strings) inside the
@@ -262,12 +273,12 @@ Json Parameters:
           `{ "PathOnHost": "/dev/deviceName", "PathInContainer": "/dev/deviceName", "CgroupPermissions": "mrw"}`
     -   **Ulimits** - A list of ulimits to be set in the container, specified as
           `{ "Name": <name>, "Soft": <soft limit>, "Hard": <hard limit> }`, for example:
-          `Ulimits: { "Name": "nofile", "Soft": 1024, "Hard", 2048 }}`
+          `Ulimits: { "Name": "nofile", "Soft": 1024, "Hard": 2048 }`
     -   **SecurityOpt**: A list of string values to customize labels for MLS
         systems, such as SELinux.
     -   **LogConfig** - Log configuration for the container, specified as
           `{ "Type": "<driver_name>", "Config": {"key1": "val1"}}`.
-          Available types: `json-file`, `syslog`, `none`.
+          Available types: `json-file`, `syslog`, `journald`, `none`.
           `json-file` logging driver.
     -   **CgroupParent** - Path to cgroups under which the cgroup for the container will be created. If the path is not absolute, the path is considered to be relative to the cgroups path of the init process. Cgroups will be created if they do not already exist.
 
@@ -468,7 +479,7 @@ Status Codes:
 Get stdout and stderr logs from the container ``id``
 
 > **Note**:
-> This endpoint works only for containers with `json-file` logging driver.
+> This endpoint works only for containers with the `json-file` or `journald` logging drivers.
 
 **Example request**:
 
@@ -682,94 +693,17 @@ Status Codes:
 
 Start the container `id`
 
+> **Note**:
+> For backwards compatibility, this endpoint accepts a `HostConfig` as JSON-encoded request body.
+> See [create a container](#create-a-container) for details.
+
 **Example request**:
 
         POST /containers/(id)/start HTTP/1.1
-        Content-Type: application/json
-
-        {
-            "Binds": ["/tmp:/tmp"],
-            "Links": ["redis3:redis"],
-            "LxcConf": {"lxc.utsname":"docker"},
-            "Memory": 0,
-            "MemorySwap": 0,
-            "CpuShares": 512,
-            "CpusetCpus": "0,1",
-            "PortBindings": { "22/tcp": [{ "HostPort": "11022" }] },
-            "PublishAllPorts": false,
-            "Privileged": false,
-            "ReadonlyRootfs": false,
-            "Dns": ["8.8.8.8"],
-            "DnsSearch": [""],
-            "ExtraHosts": null,
-            "VolumesFrom": ["parent", "other:ro"],
-            "CapAdd": ["NET_ADMIN"],
-            "CapDrop": ["MKNOD"],
-            "RestartPolicy": { "Name": "", "MaximumRetryCount": 0 },
-            "NetworkMode": "bridge",
-            "Devices": [],
-            "Ulimits": [{}],
-            "LogConfig": { "Type": "json-file", Config: {} },
-            "SecurityOpt": [""],
-            "CgroupParent": ""
-        }
 
 **Example response**:
 
         HTTP/1.1 204 No Content
-
-Json Parameters:
-
--   **Binds** – A list of volume bindings for this container. Each volume
-        binding is a string of the form `container_path` (to create a new
-        volume for the container), `host_path:container_path` (to bind-mount
-        a host path into the container), or `host_path:container_path:ro`
-        (to make the bind-mount read-only inside the container).
--   **Links** - A list of links for the container. Each link entry should be of
-      of the form `container_name:alias`.
--   **LxcConf** - LXC specific configurations. These configurations will only
-      work when using the `lxc` execution driver.
--   **PortBindings** - A map of exposed container ports and the host port they
-      should map to. It should be specified in the form
-      `{ <port>/<protocol>: [{ "HostPort": "<port>" }] }`
-      Take note that `port` is specified as a string and not an integer value.
--   **PublishAllPorts** - Allocates a random host port for all of a container's
-      exposed ports. Specified as a boolean value.
--   **Privileged** - Gives the container full access to the host. Specified as
-      a boolean value.
--   **ReadonlyRootfs** - Mount the container's root filesystem as read only.
-      Specified as a boolean value.
--   **Dns** - A list of dns servers for the container to use.
--   **DnsSearch** - A list of DNS search domains
--   **ExtraHosts** - A list of hostnames/IP mappings to be added to the
-    container's `/etc/hosts` file. Specified in the form `["hostname:IP"]`.
--   **VolumesFrom** - A list of volumes to inherit from another container.
-      Specified in the form `<container name>[:<ro|rw>]`
--   **CapAdd** - A list of kernel capabilities to add to the container.
--   **Capdrop** - A list of kernel capabilities to drop from the container.
--   **RestartPolicy** – The behavior to apply when the container exits.  The
-        value is an object with a `Name` property of either `"always"` to
-        always restart or `"on-failure"` to restart only when the container
-        exit code is non-zero.  If `on-failure` is used, `MaximumRetryCount`
-        controls the number of times to retry before giving up.
-        The default is not to restart. (optional)
-        An ever increasing delay (double the previous delay, starting at 100mS)
-        is added before each restart to prevent flooding the server.
--   **NetworkMode** - Sets the networking mode for the container. Supported
-      values are: `bridge`, `host`, and `container:<name|id>`
--   **Devices** - A list of devices to add to the container specified in the
-      form
-      `{ "PathOnHost": "/dev/deviceName", "PathInContainer": "/dev/deviceName", "CgroupPermissions": "mrw"}`
--   **Ulimits** - A list of ulimits to be set in the container, specified as
-      `{ "Name": <name>, "Soft": <soft limit>, "Hard": <hard limit> }`, for example:
-      `Ulimits: { "Name": "nofile", "Soft": 1024, "Hard", 2048 }}`
--   **SecurityOpt**: A list of string values to customize labels for MLS
-    systems, such as SELinux.
--   **LogConfig** - Log configuration for the container, specified as
-      `{ "Type": "<driver_name>", "Config": {"key1": "val1"}}`.
-      Available types: `json-file`, `syslog`, `none`.
-      `json-file` logging driver.
--   **CgroupParent** - Path to cgroups under which the cgroup for the container will be created. If the path is not absolute, the path is considered to be relative to the cgroups path of the init process. Cgroups will be created if they do not already exist.
 
 Status Codes:
 
@@ -960,7 +894,7 @@ Status Codes:
 
     When using the TTY setting is enabled in
     [`POST /containers/create`
-    ](/reference/api/docker_remote_api_v1.9/#create-a-container "POST /containers/create"),
+    ](#create-a-container),
     the stream is the raw data from the process PTY and client's stdin.
     When the TTY is disabled, then the stream is multiplexed to separate
     stdout and stderr.
@@ -1199,7 +1133,8 @@ Query Parameters:
 -   **all** – 1/True/true or 0/False/false, default false
 -   **filters** – a json encoded value of the filters (a map[string][]string) to process on the images list. Available filters:
   -   dangling=true
-  -   label=`key` or `key=value` of an image label
+  -   label=`key` or `label="key=value"` of an image label
+-   **filter** - only return images with the specified name
 
 ### Build image from a Dockerfile
 
@@ -1232,7 +1167,7 @@ the path to the alternate build instructions file to use.
 
 The archive may include any number of other files,
 which will be accessible in the build context (See the [*ADD build
-command*](/reference/builder/#dockerbuilder)).
+command*](../../reference/builder.md#dockerbuilder)).
 
 The build will also be canceled if the client drops the connection by quitting
 or being killed.
@@ -1741,7 +1676,7 @@ Create a new image from a container's changes
 **Example response**:
 
         HTTP/1.1 201 Created
-        Content-Type: application/vnd.docker.raw-stream
+        Content-Type: application/json
 
         {"Id": "596069db4bf5"}
 
@@ -1936,7 +1871,7 @@ Sets up an exec instance in a running container `id`
         Content-Type: application/json
 
         {
-             "Id": "f90e34656806"
+             "Id": "f90e34656806",
              "Warnings":[]
         }
 
@@ -1986,7 +1921,7 @@ Json Parameters:
 
 Status Codes:
 
--   **201** – no error
+-   **200** – no error
 -   **404** – no such exec instance
 
     **Stream details**:

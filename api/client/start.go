@@ -9,6 +9,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
+	Cli "github.com/docker/docker/cli"
 	flag "github.com/docker/docker/pkg/mflag"
 	"github.com/docker/docker/pkg/promise"
 	"github.com/docker/docker/pkg/signal"
@@ -31,6 +32,7 @@ func (cli *DockerCli) forwardAllSignals(cid string) chan os.Signal {
 			}
 			if sig == "" {
 				fmt.Fprintf(cli.err, "Unsupported signal: %v. Discarding.\n", s)
+				continue
 			}
 			if _, _, err := readBody(cli.call("POST", fmt.Sprintf("/containers/%s/kill?signal=%s", cid, sig), nil, nil)); err != nil {
 				logrus.Debugf("Error sending signal: %s", err)
@@ -40,34 +42,36 @@ func (cli *DockerCli) forwardAllSignals(cid string) chan os.Signal {
 	return sigc
 }
 
-// CmdStart starts one or more stopped containers.
+// CmdStart starts one or more containers.
 //
 // Usage: docker start [OPTIONS] CONTAINER [CONTAINER...]
 func (cli *DockerCli) CmdStart(args ...string) error {
+	cmd := Cli.Subcmd("start", []string{"CONTAINER [CONTAINER...]"}, Cli.DockerCommands["start"].Description, true)
+	attach := cmd.Bool([]string{"a", "-attach"}, false, "Attach STDOUT/STDERR and forward signals")
+	openStdin := cmd.Bool([]string{"i", "-interactive"}, false, "Attach container's STDIN")
+	cmd.Require(flag.Min, 1)
+
+	cmd.ParseFlags(args, true)
+
 	var (
 		cErr chan error
 		tty  bool
-
-		cmd       = cli.Subcmd("start", "CONTAINER [CONTAINER...]", "Start one or more stopped containers", true)
-		attach    = cmd.Bool([]string{"a", "-attach"}, false, "Attach STDOUT/STDERR and forward signals")
-		openStdin = cmd.Bool([]string{"i", "-interactive"}, false, "Attach container's STDIN")
 	)
-
-	cmd.Require(flag.Min, 1)
-	cmd.ParseFlags(args, true)
 
 	if *attach || *openStdin {
 		if cmd.NArg() > 1 {
 			return fmt.Errorf("You cannot start and attach multiple containers at once.")
 		}
 
-		stream, _, err := cli.call("GET", "/containers/"+cmd.Arg(0)+"/json", nil, nil)
+		serverResp, err := cli.call("GET", "/containers/"+cmd.Arg(0)+"/json", nil, nil)
 		if err != nil {
 			return err
 		}
 
+		defer serverResp.body.Close()
+
 		var c types.ContainerJSON
-		if err := json.NewDecoder(stream).Decode(&c); err != nil {
+		if err := json.NewDecoder(serverResp.body).Decode(&c); err != nil {
 			return err
 		}
 
@@ -160,7 +164,7 @@ func (cli *DockerCli) CmdStart(args ...string) error {
 			return err
 		}
 		if status != 0 {
-			return StatusError{StatusCode: status}
+			return Cli.StatusError{StatusCode: status}
 		}
 	}
 	return nil

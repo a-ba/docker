@@ -15,8 +15,7 @@ weight = 5
 
  - The Remote API has replaced `rcli`.
  - The daemon listens on `unix:///var/run/docker.sock` but you can
-   [Bind Docker to another host/port or a Unix socket](
-   /articles/basics/#bind-docker-to-another-hostport-or-a-unix-socket).
+   [Bind Docker to another host/port or a Unix socket](../../articles/basics.md#bind-docker-to-another-hostport-or-a-unix-socket).
  - The API tends to be REST, but for some complex commands, like `attach`
    or `pull`, the HTTP connection is hijacked to transport `STDOUT`,
    `STDIN` and `STDERR`.
@@ -43,6 +42,7 @@ List containers
         [
              {
                      "Id": "8dfafdbc3a40",
+                     "Names":["/boring_feynman"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 1",
                      "Created": 1367854155,
@@ -53,6 +53,7 @@ List containers
              },
              {
                      "Id": "9cd87474be90",
+                     "Names":["/coolName"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 222222",
                      "Created": 1367854155,
@@ -63,6 +64,7 @@ List containers
              },
              {
                      "Id": "3176a2479c92",
+                     "Names":["/sleep_dog"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 3333333333333333",
                      "Created": 1367854154,
@@ -73,6 +75,7 @@ List containers
              },
              {
                      "Id": "4cb07b47f9fb",
+                     "Names":["/running_cat"],
                      "Image": "ubuntu:latest",
                      "Command": "echo 444444444444444444444444444444444",
                      "Created": 1367854152,
@@ -195,7 +198,7 @@ Json Parameters:
 -   **StdinOnce** - Boolean value, close stdin after the 1 attached client disconnects.
 -   **Env** - A list of environment variables in the form of `VAR=value`
 -   **Cmd** - Command to run specified as a string or an array of strings.
--   **Entrypoint** - Set the entrypoint for the container a a string or an array
+-   **Entrypoint** - Set the entrypoint for the container a string or an array
       of strings
 -   **Image** - String value containing the image name to use for the container
 -   **Volumes** – An object mapping mountpoint paths (strings) inside the
@@ -511,70 +514,17 @@ Status Codes:
 
 Start the container `id`
 
+> **Note**:
+> For backwards compatibility, this endpoint accepts a `HostConfig` as JSON-encoded request body.
+> See [create a container](#create-a-container) for details.
+
 **Example request**:
 
         POST /containers/(id)/start HTTP/1.1
-        Content-Type: application/json
-
-        {
-             "Binds": ["/tmp:/tmp"],
-             "Links": ["redis3:redis"],
-             "LxcConf": {"lxc.utsname":"docker"},
-             "PortBindings": { "22/tcp": [{ "HostPort": "11022" }] },
-             "PublishAllPorts": false,
-             "Privileged": false,
-             "Dns": ["8.8.8.8"],
-             "DnsSearch": [""],
-             "VolumesFrom": ["parent", "other:ro"],
-             "CapAdd": ["NET_ADMIN"],
-             "CapDrop": ["MKNOD"],
-             "RestartPolicy": { "Name": "", "MaximumRetryCount": 0 },
-             "NetworkMode": "bridge",
-             "Devices": []
-        }
 
 **Example response**:
 
         HTTP/1.1 204 No Content
-
-Json Parameters:
-
--   **Binds** – A list of volume bindings for this container.  Each volume
-        binding is a string of the form `container_path` (to create a new
-        volume for the container), `host_path:container_path` (to bind-mount
-        a host path into the container), or `host_path:container_path:ro`
-        (to make the bind-mount read-only inside the container).
--   **Links** - A list of links for the container.  Each link entry should be of
-      of the form "container_name:alias".
--   **LxcConf** - LXC specific configurations.  These configurations will only
-      work when using the `lxc` execution driver.
--   **PortBindings** - A map of exposed container ports and the host port they
-      should map to. It should be specified in the form
-      `{ <port>/<protocol>: [{ "HostPort": "<port>" }] }`
-      Take note that `port` is specified as a string and not an integer value.
--   **PublishAllPorts** - Allocates a random host port for all of a container's
-      exposed ports. Specified as a boolean value.
--   **Privileged** - Gives the container full access to the host.  Specified as
-      a boolean value.
--   **Dns** - A list of dns servers for the container to use.
--   **DnsSearch** - A list of DNS search domains
--   **VolumesFrom** - A list of volumes to inherit from another container.
-      Specified in the form `<container name>[:<ro|rw>]`
--   **CapAdd** - A list of kernel capabilities to add to the container.
--   **Capdrop** - A list of kernel capabilities to drop from the container.
--   **RestartPolicy** – The behavior to apply when the container exits.  The
-        value is an object with a `Name` property of either `"always"` to
-        always restart or `"on-failure"` to restart only when the container
-        exit code is non-zero.  If `on-failure` is used, `MaximumRetryCount`
-        controls the number of times to retry before giving up.
-        The default is not to restart. (optional)
-        An ever increasing delay (double the previous delay, starting at 100mS)
-        is added before each restart to prevent flooding the server.
--   **NetworkMode** - Sets the networking mode for the container. Supported
-      values are: `bridge`, `host`, and `container:<name|id>`
--   **Devices** - A list of devices to add to the container specified in the
-      form
-      `{ "PathOnHost": "/dev/deviceName", "PathInContainer": "/dev/deviceName", "CgroupPermissions": "mrw"}`
 
 Status Codes:
 
@@ -737,7 +687,7 @@ Status Codes:
 
     When using the TTY setting is enabled in
     [`POST /containers/create`
-    ](/reference/api/docker_remote_api_v1.9/#create-a-container "POST /containers/create"),
+    ](#create-a-container),
     the stream is the raw data from the process PTY and client's stdin.
     When the TTY is disabled, then the stream is multiplexed to separate
     stdout and stderr.
@@ -937,6 +887,7 @@ Query Parameters:
 -   **all** – 1/True/true or 0/False/false, default false
 -   **filters** – a json encoded value of the filters (a map[string][]string) to process on the images list. Available filters:
   -   dangling=true
+-   **filter** - only return images with the specified name
 
 ### Create an image
 
@@ -1253,7 +1204,7 @@ Build an image from Dockerfile via stdin
     The archive must include a file called `Dockerfile`
     at its root. It may include any number of other files,
     which will be accessible in the build context (See the [*ADD build
-    command*](/reference/builder/#dockerbuilder)).
+    command*](../../reference/builder.md#dockerbuilder)).
 
 Query Parameters:
 
@@ -1442,7 +1393,7 @@ Create a new image from a container's changes
 **Example response**:
 
         HTTP/1.1 201 Created
-        Content-Type: application/vnd.docker.raw-stream
+        Content-Type: application/json
 
         {"Id": "596069db4bf5"}
 
@@ -1694,7 +1645,7 @@ Json Parameters:
 
 Status Codes:
 
--   **201** – no error
+-   **200** – no error
 -   **404** – no such exec instance
 
     **Stream details**:

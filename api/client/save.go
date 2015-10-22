@@ -2,10 +2,10 @@ package client
 
 import (
 	"errors"
-	"io"
 	"net/url"
 	"os"
 
+	Cli "github.com/docker/docker/cli"
 	"github.com/docker/docker/opts"
 	flag "github.com/docker/docker/pkg/mflag"
 )
@@ -16,8 +16,8 @@ import (
 //
 // Usage: docker save [OPTIONS] IMAGE [IMAGE...]
 func (cli *DockerCli) CmdSave(args ...string) error {
-	cmd := cli.Subcmd("save", "IMAGE [IMAGE...]", "Save an image(s) to a tar archive (streamed to STDOUT by default)", true)
-	outfile := cmd.String([]string{"o", "-output"}, "", "Write to an file, instead of STDOUT")
+	cmd := Cli.Subcmd("save", []string{"IMAGE [IMAGE...]"}, Cli.DockerCommands["save"].Description+" (streamed to STDOUT by default)", true)
+	outfile := cmd.String([]string{"o", "-output"}, "", "Write to a file, instead of STDOUT")
 	exclude := opts.NewListOpts(nil)
 	cmd.Var(&exclude, []string{"e", "-exclude"}, "Images not to be included in the archive")
 	cmd.Require(flag.Min, 1)
@@ -25,16 +25,17 @@ func (cli *DockerCli) CmdSave(args ...string) error {
 	cmd.ParseFlags(args, true)
 
 	var (
-		output io.Writer = cli.out
+		output = cli.out
 		err    error
 	)
+
+	if *outfile == "" && cli.isTerminalOut {
+		return errors.New("Cowardly refusing to save to a terminal. Use the -o flag or redirect.")
+	}
 	if *outfile != "" {
-		output, err = os.Create(*outfile)
-		if err != nil {
+		if output, err = os.Create(*outfile); err != nil {
 			return err
 		}
-	} else if cli.isTerminalOut {
-		return errors.New("Cowardly refusing to save to a terminal. Use the -o flag or redirect.")
 	}
 
 	sopts := &streamOpts{
@@ -43,22 +44,15 @@ func (cli *DockerCli) CmdSave(args ...string) error {
 	}
 
 	v := url.Values{}
+	for _, arg := range cmd.Args() {
+		v.Add("names", arg)
+	}
 	for _, img := range exclude.GetAll() {
 		v.Add("exclude", img)
 	}
-
-	if len(cmd.Args()) == 1 {
-		image := cmd.Arg(0)
-		if err := cli.stream("GET", "/images/"+image+"/get?"+v.Encode(), sopts); err != nil {
-			return err
-		}
-	} else {
-		for _, arg := range cmd.Args() {
-			v.Add("names", arg)
-		}
-		if err := cli.stream("GET", "/images/get?"+v.Encode(), sopts); err != nil {
-			return err
-		}
+	if _, err := cli.stream("GET", "/images/get?"+v.Encode(), sopts); err != nil {
+		return err
 	}
+
 	return nil
 }
