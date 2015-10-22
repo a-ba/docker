@@ -211,13 +211,7 @@ func (b *Builder) runContextCommand(args []string, allowRemote bool, allowLocalD
 		return nil
 	}
 
-	hostConfig := &runconfig.HostConfig{}
-
-	// mount the tmp external volume
-	// TODO: ensure the /tmp/ dir exists in the base image
-	hostConfig.Binds = append(hostConfig.Binds, b.tmpVolumePath + ":/tmp")
-
-	container, _, err := b.docker.Create(b.runConfig, hostConfig)
+	container, _, err := b.docker.Create(b.runConfig, nil)
 	if err != nil {
 		return err
 	}
@@ -239,7 +233,7 @@ func (b *Builder) runContextCommand(args []string, allowRemote bool, allowLocalD
 	}
 
 	for _, info := range infos {
-		if err := b.docker.Copy(container, dest, info.FileInfo, info.decompress); err != nil {
+		if err := b.docker.Copy(container, dest, info.FileInfo, info.decompress, b.tmpVolumePath); err != nil {
 			return err
 		}
 	}

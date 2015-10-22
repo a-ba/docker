@@ -120,7 +120,7 @@ type Docker interface {
 	// TODO: make an Extract method instead of passing `decompress`
 	// TODO: do not pass a FileInfo, instead refactor the archive package to export a Walk function that can be used
 	// with Context.Walk
-	Copy(c *daemon.Container, destPath string, src FileInfo, decompress bool) error
+	Copy(c *daemon.Container, destPath string, src FileInfo, decompress bool, tmpVolumePath string) error
 
 	// Retain retains an image avoiding it to be removed or overwritten until a corresponding Release() call.
 	// TODO: remove

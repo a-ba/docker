@@ -5,8 +5,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api"
@@ -118,10 +120,11 @@ func (d Docker) Release(sessionID string, activeImages []string) {
 // specified by a container object.
 // TODO: make sure callers don't unnecessarily convert destPath with filepath.FromSlash (Copy does it already).
 // Copy should take in abstract paths (with slashes) and the implementation should convert it to OS-specific paths.
-func (d Docker) Copy(c *daemon.Container, destPath string, src builder.FileInfo, decompress bool) error {
+func (d Docker) Copy(c *daemon.Container, destPath string, src builder.FileInfo, decompress bool, tmpVolumePath string) error {
 	srcPath := src.Path()
 	destExists := true
 	rootUID, rootGID := d.Daemon.GetRemappedUIDGID()
+
 
 	// Work in daemon-local OS specific file paths
 	destPath = filepath.FromSlash(destPath)
@@ -147,6 +150,40 @@ func (d Docker) Copy(c *daemon.Container, destPath string, src builder.FileInfo,
 		}
 		destExists = false
 	}
+
+	var rootPath string
+	rootPath, err = c.GetResourcePath("/")
+	if err != nil {
+		return err
+	}
+
+	tmpPath := path.Join(rootPath, "tmp")
+	_, err = os.Stat(tmpPath)
+	if err != nil {
+		err = os.Mkdir(tmpPath, 0777)
+		if err != nil {
+			return err
+		}
+		err = os.Chown(tmpPath, rootUID, rootGID)
+		if err != nil {
+			return err
+		}
+		err = os.Chmod(tmpPath, os.FileMode(0777) | os.ModeSticky)
+		if err != nil {
+			return err
+		}
+	}
+
+	// FIXME: very very ugly
+	err = syscall.Mount(tmpVolumePath, tmpPath, "bind", syscall.MS_BIND, "")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := syscall.Unmount(tmpPath, 0) ; err != nil {
+			logrus.Debugf("[BUILDER] failed to unmount dir: %s", err)
+		}
+	}()
 
 	if src.IsDir() {
 		// copy as directory
