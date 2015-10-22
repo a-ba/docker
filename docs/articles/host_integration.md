@@ -12,7 +12,7 @@ weight = 99
 # Automatically start containers
 
 As of Docker 1.2,
-[restart policies](/reference/commandline/cli/#restart-policies) are the
+[restart policies](../reference/run.md#restart-policies-restart) are the
 built-in Docker mechanism for restarting containers when they exit. If set,
 restart policies will be used when the Docker daemon starts up, as typically
 happens after a system boot. Restart policies will ensure that linked containers
@@ -30,11 +30,6 @@ that depend on Docker containers), you can use a process manager like
 Docker does not set any restart policies by default, but be aware that they will
 conflict with most process managers. So don't set restart policies if you are
 using a process manager.
-
-*Note:* Prior to Docker 1.2, restarting of Docker containers had to be
-explicitly disabled. Refer to the
-[previous version](/v1.1/articles/host_integration/) of this article for the
-details on how to do that.
 
 When you have finished setting up your image and are happy with your
 running container, you can then attach a process manager to manage it.

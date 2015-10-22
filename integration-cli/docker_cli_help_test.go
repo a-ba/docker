@@ -12,6 +12,7 @@ import (
 )
 
 func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
+	testRequires(c, DaemonIsLinux)
 	// Make sure main help text fits within 80 chars and that
 	// on non-windows system we use ~ when possible (to shorten things).
 	// Test for HOME set to its default value and set to "/" on linux
@@ -75,7 +76,7 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 			}
 		}
 
-		// Make sure each cmd's help text fits within 80 chars and that
+		// Make sure each cmd's help text fits within 90 chars and that
 		// on non-windows system we use ~ when possible (to shorten things).
 		// Pull the list of commands from the "Commands:" section of docker help
 		helpCmd = exec.Command(dockerBinary, "help")
@@ -89,12 +90,21 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 			c.Fatalf("Missing 'Commands:' in:\n%s", out)
 		}
 
-		// Grab all chars starting at "Commands:"
-		// Skip first line, its "Commands:"
 		cmds := []string{}
-		for _, cmd := range strings.Split(out[i:], "\n")[1:] {
-			var stderr string
+		// Grab all chars starting at "Commands:"
+		helpOut := strings.Split(out[i:], "\n")
+		// First line is just "Commands:"
+		if isLocalDaemon {
+			// Replace first line with "daemon" command since it's not part of the list of commands.
+			helpOut[0] = " daemon"
+		} else {
+			// Skip first line
+			helpOut = helpOut[1:]
+		}
 
+		// Create the list of commands we want to test
+		cmdsToTest := []string{}
+		for _, cmd := range helpOut {
 			// Stop on blank line or non-idented line
 			if cmd == "" || !unicode.IsSpace(rune(cmd[0])) {
 				break
@@ -102,10 +112,25 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 
 			// Grab just the first word of each line
 			cmd = strings.Split(strings.TrimSpace(cmd), " ")[0]
-			cmds = append(cmds, cmd)
+			cmds = append(cmds, cmd) // Saving count for later
+
+			cmdsToTest = append(cmdsToTest, cmd)
+		}
+
+		// Add some 'two word' commands - would be nice to automatically
+		// calculate this list - somehow
+		cmdsToTest = append(cmdsToTest, "volume create")
+		cmdsToTest = append(cmdsToTest, "volume inspect")
+		cmdsToTest = append(cmdsToTest, "volume ls")
+		cmdsToTest = append(cmdsToTest, "volume rm")
+
+		for _, cmd := range cmdsToTest {
+			var stderr string
+
+			args := strings.Split(cmd+" --help", " ")
 
 			// Check the full usage text
-			helpCmd := exec.Command(dockerBinary, cmd, "--help")
+			helpCmd := exec.Command(dockerBinary, args...)
 			helpCmd.Env = newEnvs
 			out, stderr, ec, err = runCommandWithStdoutStderr(helpCmd)
 			if len(stderr) != 0 {
@@ -124,7 +149,7 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 			// Check each line for lots of stuff
 			lines := strings.Split(out, "\n")
 			for _, line := range lines {
-				if len(line) > 80 {
+				if len(line) > 90 {
 					c.Fatalf("Help for %q is too long(%d chars):\n%s", cmd,
 						len(line), line)
 				}
@@ -159,7 +184,9 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 
 			// For each command make sure we generate an error
 			// if we give a bad arg
-			dCmd := exec.Command(dockerBinary, cmd, "--badArg")
+			args = strings.Split(cmd+" --badArg", " ")
+
+			dCmd := exec.Command(dockerBinary, args...)
 			out, stderr, ec, err = runCommandWithStdoutStderr(dCmd)
 			if len(out) != 0 || len(stderr) == 0 || ec == 0 || err == nil {
 				c.Fatalf("Bad results from 'docker %s --badArg'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", cmd, ec, out, stderr, err)
@@ -175,9 +202,10 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 
 			// These commands will never print a short-usage so don't test
 			noShortUsage := map[string]string{
-				"images": "",
-				"login":  "",
-				"logout": "",
+				"images":  "",
+				"login":   "",
+				"logout":  "",
+				"network": "",
 			}
 
 			if _, ok := noShortUsage[cmd]; !ok {
@@ -192,21 +220,22 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 				// lead to incorrect test result (like false negative).
 				// Whatever the reason, skip trying to run w/o args and
 				// jump to trying with a bogus arg.
-				skipNoArgs := map[string]string{
-					"events": "",
-					"load":   "",
+				skipNoArgs := map[string]struct{}{
+					"daemon": {},
+					"events": {},
+					"load":   {},
 				}
 
 				ec = 0
 				if _, ok := skipNoArgs[cmd]; !ok {
-					args = []string{cmd}
+					args = strings.Split(cmd, " ")
 					dCmd = exec.Command(dockerBinary, args...)
 					stdout, stderr, ec, err = runCommandWithStdoutStderr(dCmd)
 				}
 
 				// If its ok w/o any args then try again with an arg
 				if ec == 0 {
-					args = []string{cmd, "badArg"}
+					args = strings.Split(cmd+" badArg", " ")
 					dCmd = exec.Command(dockerBinary, args...)
 					stdout, stderr, ec, err = runCommandWithStdoutStderr(dCmd)
 				}
@@ -215,7 +244,7 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 					c.Fatalf("Bad output from %q\nstdout:%q\nstderr:%q\nec:%d\nerr:%q", args, stdout, stderr, ec, err)
 				}
 				// Should have just short usage
-				if !strings.Contains(stderr, "\nUsage: ") {
+				if !strings.Contains(stderr, "\nUsage:\t") {
 					c.Fatalf("Missing short usage on %q\nstderr:%q", args, stderr)
 				}
 				// But shouldn't have full usage
@@ -229,8 +258,14 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 
 		}
 
-		expected := 39
-		if len(cmds) != expected {
+		// Number of commands for standard release and experimental release
+		standard := 40
+		experimental := 1
+		expected := standard + experimental
+		if isLocalDaemon {
+			expected++ // for the daemon command
+		}
+		if len(cmds) > expected {
 			c.Fatalf("Wrong # of cmds(%d), it should be: %d\nThe list:\n%q",
 				len(cmds), expected, cmds)
 		}
@@ -239,6 +274,7 @@ func (s *DockerSuite) TestHelpTextVerify(c *check.C) {
 }
 
 func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
+	testRequires(c, DaemonIsLinux)
 	// Test to make sure the exit code and output (stdout vs stderr) of
 	// various good and bad cases are what we expect
 
@@ -246,7 +282,7 @@ func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
 	cmd := exec.Command(dockerBinary)
 	stdout, stderr, ec, err := runCommandWithStdoutStderr(cmd)
 	if len(stdout) == 0 || len(stderr) != 0 || ec != 0 || err != nil {
-		c.Fatalf("Bad results from 'docker'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", ec, stdout, stderr, err)
+		c.Fatalf("Bad results from 'docker'\nec:%d\nstdout:%s\nstderr:%s\nerr:%v", ec, stdout, stderr, err)
 	}
 	// Be really pick
 	if strings.HasSuffix(stdout, "\n\n") {
@@ -257,7 +293,7 @@ func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
 	cmd = exec.Command(dockerBinary, "help")
 	stdout, stderr, ec, err = runCommandWithStdoutStderr(cmd)
 	if len(stdout) == 0 || len(stderr) != 0 || ec != 0 || err != nil {
-		c.Fatalf("Bad results from 'docker help'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", ec, stdout, stderr, err)
+		c.Fatalf("Bad results from 'docker help'\nec:%d\nstdout:%s\nstderr:%s\nerr:%v", ec, stdout, stderr, err)
 	}
 	// Be really pick
 	if strings.HasSuffix(stdout, "\n\n") {
@@ -268,7 +304,7 @@ func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
 	cmd = exec.Command(dockerBinary, "--help")
 	stdout, stderr, ec, err = runCommandWithStdoutStderr(cmd)
 	if len(stdout) == 0 || len(stderr) != 0 || ec != 0 || err != nil {
-		c.Fatalf("Bad results from 'docker --help'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", ec, stdout, stderr, err)
+		c.Fatalf("Bad results from 'docker --help'\nec:%d\nstdout:%s\nstderr:%s\nerr:%v", ec, stdout, stderr, err)
 	}
 	// Be really pick
 	if strings.HasSuffix(stdout, "\n\n") {
@@ -280,7 +316,7 @@ func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
 	cmd = exec.Command(dockerBinary, "inspect", "busybox")
 	stdout, stderr, ec, err = runCommandWithStdoutStderr(cmd)
 	if len(stdout) == 0 || len(stderr) != 0 || ec != 0 || err != nil {
-		c.Fatalf("Bad results from 'docker inspect busybox'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", ec, stdout, stderr, err)
+		c.Fatalf("Bad results from 'docker inspect busybox'\nec:%d\nstdout:%s\nstderr:%s\nerr:%v", ec, stdout, stderr, err)
 	}
 	// Be really pick
 	if strings.HasSuffix(stdout, "\n\n") {
@@ -292,7 +328,7 @@ func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
 	cmd = exec.Command(dockerBinary, "rm")
 	stdout, stderr, ec, err = runCommandWithStdoutStderr(cmd)
 	if len(stdout) != 0 || len(stderr) == 0 || ec == 0 || err == nil {
-		c.Fatalf("Bad results from 'docker rm'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", ec, stdout, stderr, err)
+		c.Fatalf("Bad results from 'docker rm'\nec:%d\nstdout:%s\nstderr:%s\nerr:%v", ec, stdout, stderr, err)
 	}
 	// Should not contain full help text but should contain info about
 	// # of args and Usage line
@@ -305,7 +341,7 @@ func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
 	cmd = exec.Command(dockerBinary, "rm", "NoSuchContainer")
 	stdout, stderr, ec, err = runCommandWithStdoutStderr(cmd)
 	if len(stdout) != 0 || len(stderr) == 0 || ec == 0 || err == nil {
-		c.Fatalf("Bad results from 'docker rm NoSuchContainer'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", ec, stdout, stderr, err)
+		c.Fatalf("Bad results from 'docker rm NoSuchContainer'\nec:%d\nstdout:%s\nstderr:%s\nerr:%v", ec, stdout, stderr, err)
 	}
 	// Be really picky
 	if strings.HasSuffix(stderr, "\n\n") {
@@ -316,7 +352,7 @@ func (s *DockerSuite) TestHelpExitCodesHelpOutput(c *check.C) {
 	cmd = exec.Command(dockerBinary, "BadCmd")
 	stdout, stderr, ec, err = runCommandWithStdoutStderr(cmd)
 	if len(stdout) != 0 || len(stderr) == 0 || ec == 0 || err == nil {
-		c.Fatalf("Bad results from 'docker BadCmd'\nec:%d\nstdout:%s\nstderr:%s\nerr:%q", ec, stdout, stderr, err)
+		c.Fatalf("Bad results from 'docker BadCmd'\nec:%d\nstdout:%s\nstderr:%s\nerr:%v", ec, stdout, stderr, err)
 	}
 	if stderr != "docker: 'BadCmd' is not a docker command.\nSee 'docker --help'.\n" {
 		c.Fatalf("Unexcepted output for 'docker badCmd'\nstderr:%s", stderr)

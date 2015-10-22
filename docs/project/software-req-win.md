@@ -115,7 +115,7 @@ you use the manager to install the `tar` and `xz` tools from the collection.
 
 	The system displays the **Schedule of Pending Actions Dialog**.
 
-    ![windows-mingw](/project/images/windows-mingw.png)
+    ![windows-mingw](images/windows-mingw.png)
     
 11. Press **Apply**
 
@@ -145,7 +145,7 @@ You'll need to add the compiler to your `Path` environment variable.
 5. Locate the **System variables** area and scroll to the **Path**
    variable.
 
-    ![windows-mingw](/project/images/path_variable.png)
+    ![windows-mingw](images/path_variable.png)
 
 6. Click **Edit** to edit the variable (you can also double-click it).
 
@@ -153,7 +153,7 @@ You'll need to add the compiler to your `Path` environment variable.
 
 7. Make sure the `Path` includes `C:\TDM-GCC64\bin` 
 
-	 ![include gcc](/project/images/include_gcc.png)
+	 ![include gcc](images/include_gcc.png)
 	 
 	 If you don't see `C:\TDM-GCC64\bin`, add it.
 		
@@ -198,15 +198,15 @@ In this section, you install the Go language. Then, you build the source so that
 
 ## Get the Docker repository
 
-In this step, you start a Git `bash` terminal and get the Docker source code from
-Github. 
+In this step, you start a Git `bash` terminal and get the Docker source code 
+from GitHub. 
 
 1. Locate the **Git Bash** program and start it.
 
 	Recall that **Git Bash** came with the Git for Windows installation.  **Git
 	Bash** just as it sounds allows you to run a Bash terminal on Windows.
 	
-	![Git Bash](/project/images/git_bash.png)
+	![Git Bash](images/git_bash.png)
 
 2. Change to the root directory.
 
@@ -262,4 +262,4 @@ Github.
 ## Where to go next
 
 In the next section, you'll [learn how to set up and configure Git for
-contributing to Docker](/project/set-up-git/).
+contributing to Docker](set-up-git.md).

@@ -3,8 +3,8 @@ package template
 import (
 	"syscall"
 
-	"github.com/docker/libcontainer/apparmor"
-	"github.com/docker/libcontainer/configs"
+	"github.com/opencontainers/runc/libcontainer/apparmor"
+	"github.com/opencontainers/runc/libcontainer/configs"
 )
 
 const defaultMountFlags = syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_NODEV
@@ -34,10 +34,12 @@ func New() *configs.Config {
 			{Type: "NEWIPC"},
 			{Type: "NEWPID"},
 			{Type: "NEWNET"},
+			{Type: "NEWUSER"},
 		}),
 		Cgroups: &configs.Cgroup{
-			Parent:          "docker",
-			AllowAllDevices: false,
+			Parent:           "docker",
+			AllowAllDevices:  false,
+			MemorySwappiness: -1,
 		},
 		Mounts: []*configs.Mount{
 			{
@@ -61,22 +63,15 @@ func New() *configs.Config {
 				Data:        "newinstance,ptmxmode=0666,mode=0620,gid=5",
 			},
 			{
-				Device:      "tmpfs",
-				Source:      "shm",
-				Destination: "/dev/shm",
-				Data:        "mode=1777,size=65536k",
-				Flags:       defaultMountFlags,
-			},
-			{
-				Source:      "mqueue",
-				Destination: "/dev/mqueue",
-				Device:      "mqueue",
-				Flags:       defaultMountFlags,
-			},
-			{
 				Source:      "sysfs",
 				Destination: "/sys",
 				Device:      "sysfs",
+				Flags:       defaultMountFlags | syscall.MS_RDONLY,
+			},
+			{
+				Source:      "cgroup",
+				Destination: "/sys/fs/cgroup",
+				Device:      "cgroup",
 				Flags:       defaultMountFlags | syscall.MS_RDONLY,
 			},
 		},

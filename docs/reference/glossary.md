@@ -19,14 +19,14 @@ aufs (advanced multi layered unification filesystem) is a Linux [filesystem](#fi
 Docker supports as a storage backend. It implements the
 [union mount](http://en.wikipedia.org/wiki/Union_mount) for Linux file systems.
 
+## Base image
+
+An image that has no parent is a **base image**.
+
 ## boot2docker
 
 [boot2docker](http://boot2docker.io/) is a lightweight Linux distribution made
-specifically to run Docker containers. It is a common choice for a [VM](#virtual-machine)
-to run Docker on Windows and Mac OS X.
-
-boot2docker can also refer to the boot2docker management tool on Windows and
-Mac OS X which manages the boot2docker VM.
+specifically to run Docker containers. The boot2docker management tool for Mac and Windows was deprecated and replaced by [`docker-machine`](#machine) which you can install with the Docker Toolbox.
 
 ## btrfs
 
@@ -97,7 +97,7 @@ Docker and its components. It provides the following services:
 - Docker image hosting
 - User authentication
 - Automated image builds and work-flow tools such as build triggers and web hooks
-- Integration with GitHub and BitBucket
+- Integration with GitHub and Bitbucket
 
 
 ## Dockerfile
@@ -132,6 +132,12 @@ namespaces, cgroups, capabilities, and filesystem access controls. It allows
 you to manage the lifecycle of the container performing additional operations
 after the container is created.
 
+## libnetwork
+
+libnetwork provides a native Go implementation for creating and managing container
+network namespaces and other network resources. It manage the networking lifecycle 
+of the container performing additional operations after the container is created.
+
 ## link
 
 links provide an interface to connect Docker containers running on the same host
@@ -149,7 +155,12 @@ installs Docker on them, then configures the Docker client to talk to them.
 
 *Also known as : docker-machine*
 
-## overlay
+## overlay network driver
+
+Overlay network driver provides out of the box multi-host network connectivity
+for docker containers in a cluster.
+
+## overlay storage driver
 
 OverlayFS is a [filesystem](#filesystem) service for Linux which implements a
 [union mount](http://en.wikipedia.org/wiki/Union_mount) for other file systems.
@@ -187,6 +198,11 @@ A tag is a label applied to a Docker image in a [repository](#repository).
 tags are how various images in a repository are distinguished from each other.
 
 *Note : This label is not related to the key=value labels set for docker daemon*
+
+## Toolbox
+
+Docker Toolbox is the installer for Mac and Windows users.
+
 
 ## Union file system
 

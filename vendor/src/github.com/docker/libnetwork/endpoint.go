@@ -1,19 +1,18 @@
 package libnetwork
 
 import (
-	"bytes"
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
+	"container/heap"
+	"encoding/json"
+	"fmt"
+	"net"
+	"strings"
 	"sync"
 
-	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/ioutils"
-	"github.com/docker/libnetwork/etchosts"
+	log "github.com/Sirupsen/logrus"
+	"github.com/docker/libnetwork/datastore"
+	"github.com/docker/libnetwork/ipamapi"
 	"github.com/docker/libnetwork/netlabel"
-	"github.com/docker/libnetwork/resolvconf"
-	"github.com/docker/libnetwork/sandbox"
+	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/types"
 )
 
@@ -28,19 +27,17 @@ type Endpoint interface {
 	// Network returns the name of the network to which this endpoint is attached.
 	Network() string
 
-	// Join creates a new sandbox for the given container ID and populates the
-	// network resources allocated for the endpoint and joins the sandbox to
-	// the endpoint. It returns the sandbox key to the caller
-	Join(containerID string, options ...EndpointOption) (*ContainerData, error)
+	// Join joins the sandbox to the endpoint and populates into the sandbox
+	// the network resources allocated for the endpoint.
+	Join(sandbox Sandbox, options ...EndpointOption) error
 
-	// Leave removes the sandbox associated with  container ID and detaches
-	// the network resources populated in the sandbox
-	Leave(containerID string, options ...EndpointOption) error
+	// Leave detaches the network resources populated in the sandbox.
+	Leave(sandbox Sandbox, options ...EndpointOption) error
 
 	// Return certain operational data belonging to this endpoint
 	Info() EndpointInfo
 
-	// Info returns a collection of driver operational data related to this endpoint retrieved from the driver
+	// DriverInfo returns a collection of driver operational data related to this endpoint retrieved from the driver
 	DriverInfo() (map[string]interface{}, error)
 
 	// Delete and detaches this endpoint from the network.
@@ -52,72 +49,101 @@ type Endpoint interface {
 // provided by libnetwork, they look like <Create|Join|Leave>Option[...](...)
 type EndpointOption func(ep *endpoint)
 
-// ContainerData is a set of data returned when a container joins an endpoint.
-type ContainerData struct {
-	SandboxKey string
-}
-
-// These are the container configs used to customize container /etc/hosts file.
-type hostsPathConfig struct {
-	hostName      string
-	domainName    string
-	hostsPath     string
-	extraHosts    []extraHost
-	parentUpdates []parentUpdate
-}
-
-// These are the container configs used to customize container /etc/resolv.conf file.
-type resolvConfPathConfig struct {
-	resolvConfPath string
-	dnsList        []string
-	dnsSearchList  []string
-}
-
-type containerConfig struct {
-	hostsPathConfig
-	resolvConfPathConfig
-	generic           map[string]interface{}
-	useDefaultSandBox bool
-}
-
-type extraHost struct {
-	name string
-	IP   string
-}
-
-type parentUpdate struct {
-	eid  string
-	name string
-	ip   string
-}
-
-type containerInfo struct {
-	id     string
-	config containerConfig
-	data   ContainerData
-}
-
 type endpoint struct {
 	name          string
-	id            types.UUID
+	id            string
 	network       *network
-	sandboxInfo   *sandbox.Info
-	iFaces        []*endpointInterface
+	iface         *endpointInterface
 	joinInfo      *endpointJoinInfo
-	container     *containerInfo
+	sandboxID     string
 	exposedPorts  []types.TransportPort
 	generic       map[string]interface{}
 	joinLeaveDone chan struct{}
+	dbIndex       uint64
+	dbExists      bool
 	sync.Mutex
 }
 
-const defaultPrefix = "/var/lib/docker/network/files"
+func (ep *endpoint) MarshalJSON() ([]byte, error) {
+	ep.Lock()
+	defer ep.Unlock()
+
+	epMap := make(map[string]interface{})
+	epMap["name"] = ep.name
+	epMap["id"] = ep.id
+	epMap["ep_iface"] = ep.iface
+	epMap["exposed_ports"] = ep.exposedPorts
+	if ep.generic != nil {
+		epMap["generic"] = ep.generic
+	}
+	epMap["sandbox"] = ep.sandboxID
+	return json.Marshal(epMap)
+}
+
+func (ep *endpoint) UnmarshalJSON(b []byte) (err error) {
+	ep.Lock()
+	defer ep.Unlock()
+
+	var epMap map[string]interface{}
+	if err := json.Unmarshal(b, &epMap); err != nil {
+		return err
+	}
+	ep.name = epMap["name"].(string)
+	ep.id = epMap["id"].(string)
+
+	ib, _ := json.Marshal(epMap["ep_iface"])
+	json.Unmarshal(ib, &ep.iface)
+
+	tb, _ := json.Marshal(epMap["exposed_ports"])
+	var tPorts []types.TransportPort
+	json.Unmarshal(tb, &tPorts)
+	ep.exposedPorts = tPorts
+
+	cb, _ := json.Marshal(epMap["sandbox"])
+	json.Unmarshal(cb, &ep.sandboxID)
+
+	if v, ok := epMap["generic"]; ok {
+		ep.generic = v.(map[string]interface{})
+	}
+	return nil
+}
+
+func (ep *endpoint) New() datastore.KVObject {
+	return &endpoint{network: ep.getNetwork()}
+}
+
+func (ep *endpoint) CopyTo(o datastore.KVObject) error {
+	ep.Lock()
+	defer ep.Unlock()
+
+	dstEp := o.(*endpoint)
+	dstEp.name = ep.name
+	dstEp.id = ep.id
+	dstEp.sandboxID = ep.sandboxID
+	dstEp.dbIndex = ep.dbIndex
+	dstEp.dbExists = ep.dbExists
+
+	if ep.iface != nil {
+		dstEp.iface = &endpointInterface{}
+		ep.iface.CopyTo(dstEp.iface)
+	}
+
+	dstEp.exposedPorts = make([]types.TransportPort, len(ep.exposedPorts))
+	copy(dstEp.exposedPorts, ep.exposedPorts)
+
+	dstEp.generic = options.Generic{}
+	for k, v := range ep.generic {
+		dstEp.generic[k] = v
+	}
+
+	return nil
+}
 
 func (ep *endpoint) ID() string {
 	ep.Lock()
 	defer ep.Unlock()
 
-	return string(ep.id)
+	return ep.id
 }
 
 func (ep *endpoint) Name() string {
@@ -128,10 +154,74 @@ func (ep *endpoint) Name() string {
 }
 
 func (ep *endpoint) Network() string {
-	ep.Lock()
-	defer ep.Unlock()
+	if ep.network == nil {
+		return ""
+	}
 
 	return ep.network.name
+}
+
+// endpoint Key structure : endpoint/network-id/endpoint-id
+func (ep *endpoint) Key() []string {
+	if ep.network == nil {
+		return nil
+	}
+
+	return []string{datastore.EndpointKeyPrefix, ep.network.id, ep.id}
+}
+
+func (ep *endpoint) KeyPrefix() []string {
+	if ep.network == nil {
+		return nil
+	}
+
+	return []string{datastore.EndpointKeyPrefix, ep.network.id}
+}
+
+func (ep *endpoint) networkIDFromKey(key string) (string, error) {
+	// endpoint Key structure : docker/libnetwork/endpoint/${network-id}/${endpoint-id}
+	// it's an invalid key if the key doesn't have all the 5 key elements above
+	keyElements := strings.Split(key, "/")
+	if !strings.HasPrefix(key, datastore.Key(datastore.EndpointKeyPrefix)) || len(keyElements) < 5 {
+		return "", fmt.Errorf("invalid endpoint key : %v", key)
+	}
+	// network-id is placed at index=3. pls refer to endpoint.Key() method
+	return strings.Split(key, "/")[3], nil
+}
+
+func (ep *endpoint) Value() []byte {
+	b, err := json.Marshal(ep)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+func (ep *endpoint) SetValue(value []byte) error {
+	return json.Unmarshal(value, ep)
+}
+
+func (ep *endpoint) Index() uint64 {
+	ep.Lock()
+	defer ep.Unlock()
+	return ep.dbIndex
+}
+
+func (ep *endpoint) SetIndex(index uint64) {
+	ep.Lock()
+	defer ep.Unlock()
+	ep.dbIndex = index
+	ep.dbExists = true
+}
+
+func (ep *endpoint) Exists() bool {
+	ep.Lock()
+	defer ep.Unlock()
+	return ep.dbExists
+}
+
+func (ep *endpoint) Skip() bool {
+	return ep.getNetwork().Skip()
 }
 
 func (ep *endpoint) processOptions(options ...EndpointOption) {
@@ -145,471 +235,331 @@ func (ep *endpoint) processOptions(options ...EndpointOption) {
 	}
 }
 
-func createBasePath(dir string) error {
-	err := os.MkdirAll(dir, 0644)
-	if err != nil && !os.IsExist(err) {
-		return err
-	}
-
-	return nil
-}
-
-func createFile(path string) error {
-	var f *os.File
-
-	dir, _ := filepath.Split(path)
-	err := createBasePath(dir)
-	if err != nil {
-		return err
-	}
-
-	f, err = os.Create(path)
-	if err == nil {
-		f.Close()
-	}
-
-	return err
-}
-
-// joinLeaveStart waits to ensure there are no joins or leaves in progress and
-// marks this join/leave in progress without race
-func (ep *endpoint) joinLeaveStart() {
+func (ep *endpoint) getNetwork() *network {
 	ep.Lock()
 	defer ep.Unlock()
 
-	for ep.joinLeaveDone != nil {
-		joinLeaveDone := ep.joinLeaveDone
-		ep.Unlock()
-
-		select {
-		case <-joinLeaveDone:
-		}
-
-		ep.Lock()
-	}
-
-	ep.joinLeaveDone = make(chan struct{})
+	return ep.network
 }
 
-// joinLeaveEnd marks the end of this join/leave operation and
-// signals the same without race to other join and leave waiters
-func (ep *endpoint) joinLeaveEnd() {
-	ep.Lock()
-	defer ep.Unlock()
-
-	if ep.joinLeaveDone != nil {
-		close(ep.joinLeaveDone)
-		ep.joinLeaveDone = nil
+func (ep *endpoint) getNetworkFromStore() (*network, error) {
+	if ep.network == nil {
+		return nil, fmt.Errorf("invalid network object in endpoint %s", ep.Name())
 	}
+
+	return ep.network.ctrlr.getNetworkFromStore(ep.network.id)
 }
 
-func (ep *endpoint) Join(containerID string, options ...EndpointOption) (*ContainerData, error) {
+func (ep *endpoint) Join(sbox Sandbox, options ...EndpointOption) error {
+	if sbox == nil {
+		return types.BadRequestErrorf("endpoint cannot be joined by nil container")
+	}
+
+	sb, ok := sbox.(*sandbox)
+	if !ok {
+		return types.BadRequestErrorf("not a valid Sandbox interface")
+	}
+
+	sb.joinLeaveStart()
+	defer sb.joinLeaveEnd()
+
+	return ep.sbJoin(sbox, options...)
+}
+
+func (ep *endpoint) sbJoin(sbox Sandbox, options ...EndpointOption) error {
 	var err error
-
-	if containerID == "" {
-		return nil, InvalidContainerIDError(containerID)
+	sb, ok := sbox.(*sandbox)
+	if !ok {
+		return types.BadRequestErrorf("not a valid Sandbox interface")
 	}
 
-	ep.joinLeaveStart()
-	defer ep.joinLeaveEnd()
+	network, err := ep.getNetworkFromStore()
+	if err != nil {
+		return fmt.Errorf("failed to get network from store during join: %v", err)
+	}
+
+	ep, err = network.getEndpointFromStore(ep.ID())
+	if err != nil {
+		return fmt.Errorf("failed to get endpoint from store during join: %v", err)
+	}
 
 	ep.Lock()
-	if ep.container != nil {
+	if ep.sandboxID != "" {
 		ep.Unlock()
-		return nil, ErrInvalidJoin{}
+		return types.ForbiddenErrorf("another container is attached to the same network endpoint")
 	}
+	ep.Unlock()
 
-	ep.container = &containerInfo{
-		id: containerID,
-		config: containerConfig{
-			hostsPathConfig: hostsPathConfig{
-				extraHosts:    []extraHost{},
-				parentUpdates: []parentUpdate{},
-			},
-		}}
-
+	ep.Lock()
+	ep.network = network
+	ep.sandboxID = sbox.ID()
 	ep.joinInfo = &endpointJoinInfo{}
-
-	container := ep.container
-	network := ep.network
 	epid := ep.id
-	joinInfo := ep.joinInfo
-	ifaces := ep.iFaces
-
 	ep.Unlock()
 	defer func() {
-		ep.Lock()
 		if err != nil {
-			ep.container = nil
+			ep.Lock()
+			ep.sandboxID = ""
+			ep.Unlock()
 		}
-		ep.Unlock()
 	}()
 
 	network.Lock()
-	driver := network.driver
 	nid := network.id
-	ctrlr := network.ctrlr
 	network.Unlock()
 
 	ep.processOptions(options...)
 
-	sboxKey := sandbox.GenerateKey(containerID)
-	if container.config.useDefaultSandBox {
-		sboxKey = sandbox.GenerateKey("default")
+	driver, err := network.driver()
+	if err != nil {
+		return fmt.Errorf("failed to join endpoint: %v", err)
 	}
 
-	err = driver.Join(nid, epid, sboxKey, ep, container.config.generic)
+	err = driver.Join(nid, epid, sbox.Key(), ep, sbox.Labels())
 	if err != nil {
-		return nil, err
-	}
-
-	err = ep.buildHostsFiles()
-	if err != nil {
-		return nil, err
-	}
-
-	err = ep.updateParentHosts()
-	if err != nil {
-		return nil, err
-	}
-
-	err = ep.setupDNS()
-	if err != nil {
-		return nil, err
-	}
-
-	sb, err := ctrlr.sandboxAdd(sboxKey, !container.config.useDefaultSandBox)
-	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() {
 		if err != nil {
-			ctrlr.sandboxRm(sboxKey)
+			// Do not alter global err variable, it's needed by the previous defer
+			if err := driver.Leave(nid, epid); err != nil {
+				log.Warnf("driver leave failed while rolling back join: %v", err)
+			}
 		}
 	}()
 
-	for _, i := range ifaces {
-		iface := &sandbox.Interface{
-			SrcName: i.srcName,
-			DstName: i.dstPrefix,
-			Address: &i.addr,
-		}
-		if i.addrv6.IP.To16() != nil {
-			iface.AddressIPv6 = &i.addrv6
-		}
-		err = sb.AddInterface(iface)
+	address := ""
+	if ip := ep.getFirstInterfaceAddress(); ip != nil {
+		address = ip.String()
+	}
+	if err = sb.updateHostsFile(address, network.getSvcRecords()); err != nil {
+		return err
+	}
+
+	// Watch for service records
+	network.getController().watchSvcRecord(ep)
+
+	if err = sb.updateDNS(network.enableIPv6); err != nil {
+		return err
+	}
+
+	if err = network.getController().updateToStore(ep); err != nil {
+		return err
+	}
+
+	sb.Lock()
+	heap.Push(&sb.endpoints, ep)
+	sb.Unlock()
+	defer func() {
 		if err != nil {
-			return nil, err
+			for i, e := range sb.getConnectedEndpoints() {
+				if e == ep {
+					sb.Lock()
+					heap.Remove(&sb.endpoints, i)
+					sb.Unlock()
+					return
+				}
+			}
 		}
+	}()
+
+	if err = sb.populateNetworkResources(ep); err != nil {
+		return err
 	}
 
-	err = sb.SetGateway(joinInfo.gw)
-	if err != nil {
-		return nil, err
+	if sb.needDefaultGW() {
+		return sb.setupDefaultGW(ep)
 	}
-
-	err = sb.SetGatewayIPv6(joinInfo.gw6)
-	if err != nil {
-		return nil, err
-	}
-
-	container.data.SandboxKey = sb.Key()
-	cData := container.data
-
-	return &cData, nil
+	return sb.clearDefaultGW()
 }
 
-func (ep *endpoint) Leave(containerID string, options ...EndpointOption) error {
-	var err error
+func (ep *endpoint) hasInterface(iName string) bool {
+	ep.Lock()
+	defer ep.Unlock()
 
-	ep.joinLeaveStart()
-	defer ep.joinLeaveEnd()
+	return ep.iface != nil && ep.iface.srcName == iName
+}
+
+func (ep *endpoint) Leave(sbox Sandbox, options ...EndpointOption) error {
+	if sbox == nil || sbox.ID() == "" || sbox.Key() == "" {
+		return types.BadRequestErrorf("invalid Sandbox passed to enpoint leave: %v", sbox)
+	}
+
+	sb, ok := sbox.(*sandbox)
+	if !ok {
+		return types.BadRequestErrorf("not a valid Sandbox interface")
+	}
+
+	sb.joinLeaveStart()
+	defer sb.joinLeaveEnd()
+
+	return ep.sbLeave(sbox, options...)
+}
+
+func (ep *endpoint) sbLeave(sbox Sandbox, options ...EndpointOption) error {
+	sb, ok := sbox.(*sandbox)
+	if !ok {
+		return types.BadRequestErrorf("not a valid Sandbox interface")
+	}
+
+	n, err := ep.getNetworkFromStore()
+	if err != nil {
+		return fmt.Errorf("failed to get network from store during leave: %v", err)
+	}
+
+	ep, err = n.getEndpointFromStore(ep.ID())
+	if err != nil {
+		return fmt.Errorf("failed to get endpoint from store during leave: %v", err)
+	}
+
+	ep.Lock()
+	sid := ep.sandboxID
+	ep.Unlock()
+
+	if sid == "" {
+		return types.ForbiddenErrorf("cannot leave endpoint with no attached sandbox")
+	}
+	if sid != sbox.ID() {
+		return types.ForbiddenErrorf("unexpected sandbox ID in leave request. Expected %s. Got %s", ep.sandboxID, sbox.ID())
+	}
 
 	ep.processOptions(options...)
 
 	ep.Lock()
-	container := ep.container
-	n := ep.network
+	ep.sandboxID = ""
+	ep.network = n
+	ep.Unlock()
 
-	if container == nil || container.id == "" ||
-		containerID == "" || container.id != containerID {
-		if container == nil {
-			err = ErrNoContainer{}
-		} else {
-			err = InvalidContainerIDError(containerID)
-		}
-
+	if err := n.getController().updateToStore(ep); err != nil {
+		ep.Lock()
+		ep.sandboxID = sid
 		ep.Unlock()
 		return err
 	}
-	ep.container = nil
-	ep.Unlock()
 
-	n.Lock()
-	driver := n.driver
-	ctrlr := n.ctrlr
-	n.Unlock()
-
-	err = driver.Leave(n.id, ep.id)
-
-	sb := ctrlr.sandboxGet(container.data.SandboxKey)
-	for _, i := range sb.Interfaces() {
-		err = sb.RemoveInterface(i)
-		if err != nil {
-			logrus.Debugf("Remove interface failed: %v", err)
-		}
+	d, err := n.driver()
+	if err != nil {
+		return fmt.Errorf("failed to leave endpoint: %v", err)
 	}
 
-	ctrlr.sandboxRm(container.data.SandboxKey)
+	if err := d.Leave(n.id, ep.id); err != nil {
+		return err
+	}
 
-	return err
+	if err := sb.clearNetworkResources(ep); err != nil {
+		return err
+	}
+
+	// unwatch for service records
+	n.getController().unWatchSvcRecord(ep)
+
+	if sb.needDefaultGW() {
+		ep := sb.getEPwithoutGateway()
+		if ep == nil {
+			return fmt.Errorf("endpoint without GW expected, but not found")
+		}
+		return sb.setupDefaultGW(ep)
+	}
+	return sb.clearDefaultGW()
 }
 
 func (ep *endpoint) Delete() error {
 	var err error
+	n, err := ep.getNetworkFromStore()
+	if err != nil {
+		return fmt.Errorf("failed to get network during Delete: %v", err)
+	}
+
+	ep, err = n.getEndpointFromStore(ep.ID())
+	if err != nil {
+		return fmt.Errorf("failed to get endpoint from store during Delete: %v", err)
+	}
 
 	ep.Lock()
 	epid := ep.id
 	name := ep.name
-	if ep.container != nil {
+	if ep.sandboxID != "" {
 		ep.Unlock()
-		return &ActiveContainerError{name: name, id: string(epid)}
+		return &ActiveContainerError{name: name, id: epid}
 	}
-
-	n := ep.network
 	ep.Unlock()
 
-	n.Lock()
-	_, ok := n.endpoints[epid]
-	if !ok {
-		n.Unlock()
-		return &UnknownEndpointError{name: name, id: string(epid)}
+	if err = n.getEpCnt().DecEndpointCnt(); err != nil {
+		return err
 	}
-
-	nid := n.id
-	driver := n.driver
-	delete(n.endpoints, epid)
-	n.Unlock()
 	defer func() {
 		if err != nil {
-			n.Lock()
-			n.endpoints[epid] = ep
-			n.Unlock()
+			if e := n.getEpCnt().IncEndpointCnt(); e != nil {
+				log.Warnf("failed to update network %s : %v", n.name, e)
+			}
 		}
 	}()
 
-	err = driver.DeleteEndpoint(nid, epid)
-	return err
-}
-
-func (ep *endpoint) buildHostsFiles() error {
-	var extraContent []etchosts.Record
-
-	ep.Lock()
-	container := ep.container
-	joinInfo := ep.joinInfo
-	ifaces := ep.iFaces
-	ep.Unlock()
-
-	if container == nil {
-		return ErrNoContainer{}
+	if err = n.getController().deleteFromStore(ep); err != nil {
+		return err
 	}
+	defer func() {
+		if err != nil {
+			ep.dbExists = false
+			if e := n.getController().updateToStore(ep); e != nil {
+				log.Warnf("failed to recreate endpoint in store %s : %v", name, e)
+			}
+		}
+	}()
 
-	if container.config.hostsPath == "" {
-		container.config.hostsPath = defaultPrefix + "/" + container.id + "/hosts"
-	}
-
-	dir, _ := filepath.Split(container.config.hostsPath)
-	err := createBasePath(dir)
-	if err != nil {
+	if err = ep.deleteEndpoint(); err != nil {
 		return err
 	}
 
-	if joinInfo != nil && joinInfo.hostsPath != "" {
-		content, err := ioutil.ReadFile(joinInfo.hostsPath)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
+	ep.releaseAddress()
 
-		if err == nil {
-			return ioutil.WriteFile(container.config.hostsPath, content, 0644)
-		}
-	}
-
-	name := container.config.hostName
-	if container.config.domainName != "" {
-		name = name + "." + container.config.domainName
-	}
-
-	for _, extraHost := range container.config.extraHosts {
-		extraContent = append(extraContent,
-			etchosts.Record{Hosts: extraHost.name, IP: extraHost.IP})
-	}
-
-	IP := ""
-	if len(ifaces) != 0 && ifaces[0] != nil {
-		IP = ifaces[0].addr.IP.String()
-	}
-
-	return etchosts.Build(container.config.hostsPath, IP, container.config.hostName,
-		container.config.domainName, extraContent)
+	return nil
 }
 
-func (ep *endpoint) updateParentHosts() error {
+func (ep *endpoint) deleteEndpoint() error {
 	ep.Lock()
-	container := ep.container
-	network := ep.network
+	n := ep.network
+	name := ep.name
+	epid := ep.id
 	ep.Unlock()
 
-	if container == nil {
-		return ErrNoContainer{}
+	driver, err := n.driver()
+	if err != nil {
+		return fmt.Errorf("failed to delete endpoint: %v", err)
 	}
 
-	for _, update := range container.config.parentUpdates {
-		network.Lock()
-		pep, ok := network.endpoints[types.UUID(update.eid)]
-		if !ok {
-			network.Unlock()
-			continue
+	if err := driver.DeleteEndpoint(n.id, epid); err != nil {
+		if _, ok := err.(types.ForbiddenError); ok {
+			return err
 		}
-		network.Unlock()
-
-		pep.Lock()
-		pContainer := pep.container
-		pep.Unlock()
-
-		if pContainer != nil {
-			if err := etchosts.Update(pContainer.config.hostsPath, update.ip, update.name); err != nil {
-				return err
-			}
-		}
+		log.Warnf("driver error deleting endpoint %s : %v", name, err)
 	}
 
 	return nil
 }
 
-func (ep *endpoint) updateDNS(resolvConf []byte) error {
+func (ep *endpoint) getSandbox() (*sandbox, bool) {
 	ep.Lock()
-	container := ep.container
-	network := ep.network
+	c := ep.network.getController()
+	sid := ep.sandboxID
 	ep.Unlock()
 
-	if container == nil {
-		return ErrNoContainer{}
-	}
+	c.Lock()
+	ps, ok := c.sandboxes[sid]
+	c.Unlock()
 
-	oldHash := []byte{}
-	hashFile := container.config.resolvConfPath + ".hash"
-
-	resolvBytes, err := ioutil.ReadFile(container.config.resolvConfPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-	} else {
-		oldHash, err = ioutil.ReadFile(hashFile)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-
-			oldHash = []byte{}
-		}
-	}
-
-	curHash, err := ioutils.HashData(bytes.NewReader(resolvBytes))
-	if err != nil {
-		return err
-	}
-
-	if string(oldHash) != "" && curHash != string(oldHash) {
-		// Seems the user has changed the container resolv.conf since the last time
-		// we checked so return without doing anything.
-		return nil
-	}
-
-	// replace any localhost/127.* and remove IPv6 nameservers if IPv6 disabled.
-	resolvConf, _ = resolvconf.FilterResolvDNS(resolvConf, network.enableIPv6)
-
-	newHash, err := ioutils.HashData(bytes.NewReader(resolvConf))
-	if err != nil {
-		return err
-	}
-
-	// for atomic updates to these files, use temporary files with os.Rename:
-	dir := path.Dir(container.config.resolvConfPath)
-	tmpHashFile, err := ioutil.TempFile(dir, "hash")
-	if err != nil {
-		return err
-	}
-	tmpResolvFile, err := ioutil.TempFile(dir, "resolv")
-	if err != nil {
-		return err
-	}
-
-	// Change the perms to 0644 since ioutil.TempFile creates it by default as 0600
-	if err := os.Chmod(tmpResolvFile.Name(), 0644); err != nil {
-		return err
-	}
-
-	// write the updates to the temp files
-	if err = ioutil.WriteFile(tmpHashFile.Name(), []byte(newHash), 0644); err != nil {
-		return err
-	}
-	if err = ioutil.WriteFile(tmpResolvFile.Name(), resolvConf, 0644); err != nil {
-		return err
-	}
-
-	// rename the temp files for atomic replace
-	if err = os.Rename(tmpHashFile.Name(), hashFile); err != nil {
-		return err
-	}
-	return os.Rename(tmpResolvFile.Name(), container.config.resolvConfPath)
+	return ps, ok
 }
 
-func (ep *endpoint) setupDNS() error {
+func (ep *endpoint) getFirstInterfaceAddress() net.IP {
 	ep.Lock()
-	container := ep.container
-	ep.Unlock()
+	defer ep.Unlock()
 
-	if container == nil {
-		return ErrNoContainer{}
+	if ep.iface.addr != nil {
+		return ep.iface.addr.IP
 	}
 
-	if container.config.resolvConfPath == "" {
-		container.config.resolvConfPath = defaultPrefix + "/" + container.id + "/resolv.conf"
-	}
-
-	dir, _ := filepath.Split(container.config.resolvConfPath)
-	err := createBasePath(dir)
-	if err != nil {
-		return err
-	}
-
-	resolvConf, err := resolvconf.Get()
-	if err != nil {
-		return err
-	}
-
-	if len(container.config.dnsList) > 0 ||
-		len(container.config.dnsSearchList) > 0 {
-		var (
-			dnsList       = resolvconf.GetNameservers(resolvConf)
-			dnsSearchList = resolvconf.GetSearchDomains(resolvConf)
-		)
-
-		if len(container.config.dnsList) > 0 {
-			dnsList = container.config.dnsList
-		}
-
-		if len(container.config.dnsSearchList) > 0 {
-			dnsSearchList = container.config.dnsSearchList
-		}
-
-		return resolvconf.Build(container.config.resolvConfPath, dnsList, dnsSearchList)
-	}
-
-	return ep.updateDNS(resolvConf)
+	return nil
 }
 
 // EndpointOptionGeneric function returns an option setter for a Generic option defined
@@ -619,78 +569,6 @@ func EndpointOptionGeneric(generic map[string]interface{}) EndpointOption {
 		for k, v := range generic {
 			ep.generic[k] = v
 		}
-	}
-}
-
-// JoinOptionHostname function returns an option setter for hostname option to
-// be passed to endpoint Join method.
-func JoinOptionHostname(name string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.hostName = name
-	}
-}
-
-// JoinOptionDomainname function returns an option setter for domainname option to
-// be passed to endpoint Join method.
-func JoinOptionDomainname(name string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.domainName = name
-	}
-}
-
-// JoinOptionHostsPath function returns an option setter for hostspath option to
-// be passed to endpoint Join method.
-func JoinOptionHostsPath(path string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.hostsPath = path
-	}
-}
-
-// JoinOptionExtraHost function returns an option setter for extra /etc/hosts options
-// which is a name and IP as strings.
-func JoinOptionExtraHost(name string, IP string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.extraHosts = append(ep.container.config.extraHosts, extraHost{name: name, IP: IP})
-	}
-}
-
-// JoinOptionParentUpdate function returns an option setter for parent container
-// which needs to update the IP address for the linked container.
-func JoinOptionParentUpdate(eid string, name, ip string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.parentUpdates = append(ep.container.config.parentUpdates, parentUpdate{eid: eid, name: name, ip: ip})
-	}
-}
-
-// JoinOptionResolvConfPath function returns an option setter for resolvconfpath option to
-// be passed to endpoint Join method.
-func JoinOptionResolvConfPath(path string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.resolvConfPath = path
-	}
-}
-
-// JoinOptionDNS function returns an option setter for dns entry option to
-// be passed to endpoint Join method.
-func JoinOptionDNS(dns string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.dnsList = append(ep.container.config.dnsList, dns)
-	}
-}
-
-// JoinOptionDNSSearch function returns an option setter for dns search entry option to
-// be passed to endpoint Join method.
-func JoinOptionDNSSearch(search string) EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.dnsSearchList = append(ep.container.config.dnsSearchList, search)
-	}
-}
-
-// JoinOptionUseDefaultSandbox function returns an option setter for using default sandbox to
-// be passed to endpoint Join method.
-func JoinOptionUseDefaultSandbox() EndpointOption {
-	return func(ep *endpoint) {
-		ep.container.config.useDefaultSandBox = true
 	}
 }
 
@@ -718,11 +596,111 @@ func CreateOptionPortMapping(portBindings []types.PortBinding) EndpointOption {
 	}
 }
 
-// JoinOptionGeneric function returns an option setter for Generic configuration
-// that is not managed by libNetwork but can be used by the Drivers during the call to
-// endpoint join method. Container Labels are a good example.
-func JoinOptionGeneric(generic map[string]interface{}) EndpointOption {
+// JoinOptionPriority function returns an option setter for priority option to
+// be passed to the endpoint.Join() method.
+func JoinOptionPriority(ep Endpoint, prio int) EndpointOption {
 	return func(ep *endpoint) {
-		ep.container.config.generic = generic
+		// ep lock already acquired
+		c := ep.network.getController()
+		c.Lock()
+		sb, ok := c.sandboxes[ep.sandboxID]
+		c.Unlock()
+		if !ok {
+			log.Errorf("Could not set endpoint priority value during Join to endpoint %s: No sandbox id present in endpoint", ep.id)
+			return
+		}
+		sb.epPriority[ep.id] = prio
+	}
+}
+
+func (ep *endpoint) DataScope() string {
+	return ep.getNetwork().DataScope()
+}
+
+func (ep *endpoint) assignAddress() error {
+	var (
+		ipam ipamapi.Ipam
+		err  error
+	)
+
+	n := ep.getNetwork()
+	if n.Type() == "host" || n.Type() == "null" {
+		return nil
+	}
+
+	log.Debugf("Assigning addresses for endpoint %s's interface on network %s", ep.Name(), n.Name())
+
+	ipam, err = n.getController().getIpamDriver(n.ipamType)
+	if err != nil {
+		return err
+	}
+	err = ep.assignAddressVersion(4, ipam)
+	if err != nil {
+		return err
+	}
+	return ep.assignAddressVersion(6, ipam)
+}
+
+func (ep *endpoint) assignAddressVersion(ipVer int, ipam ipamapi.Ipam) error {
+	var (
+		poolID  *string
+		address **net.IPNet
+	)
+
+	n := ep.getNetwork()
+	switch ipVer {
+	case 4:
+		poolID = &ep.iface.v4PoolID
+		address = &ep.iface.addr
+	case 6:
+		poolID = &ep.iface.v6PoolID
+		address = &ep.iface.addrv6
+	default:
+		return types.InternalErrorf("incorrect ip version number passed: %d", ipVer)
+	}
+
+	ipInfo := n.getIPInfo(ipVer)
+
+	// ipv6 address is not mandatory
+	if len(ipInfo) == 0 && ipVer == 6 {
+		return nil
+	}
+
+	for _, d := range ipInfo {
+		addr, _, err := ipam.RequestAddress(d.PoolID, nil, nil)
+		if err == nil {
+			ep.Lock()
+			*address = addr
+			*poolID = d.PoolID
+			ep.Unlock()
+			return nil
+		}
+		if err != ipamapi.ErrNoAvailableIPs {
+			return err
+		}
+	}
+	return fmt.Errorf("no available IPv%d addresses on this network's address pools: %s (%s)", ipVer, n.Name(), n.ID())
+}
+
+func (ep *endpoint) releaseAddress() {
+	n := ep.getNetwork()
+	if n.Type() == "host" || n.Type() == "null" {
+		return
+	}
+
+	log.Debugf("Releasing addresses for endpoint %s's interface on network %s", ep.Name(), n.Name())
+
+	ipam, err := n.getController().getIpamDriver(n.ipamType)
+	if err != nil {
+		log.Warnf("Failed to retrieve ipam driver to release interface address on delete of endpoint %s (%s): %v", ep.Name(), ep.ID(), err)
+		return
+	}
+	if err := ipam.ReleaseAddress(ep.iface.v4PoolID, ep.iface.addr.IP); err != nil {
+		log.Warnf("Failed to release ip address %s on delete of endpoint %s (%s): %v", ep.iface.addr.IP, ep.Name(), ep.ID(), err)
+	}
+	if ep.iface.addrv6 != nil && ep.iface.addrv6.IP.IsGlobalUnicast() {
+		if err := ipam.ReleaseAddress(ep.iface.v6PoolID, ep.iface.addrv6.IP); err != nil {
+			log.Warnf("Failed to release ip address %s on delete of endpoint %s (%s): %v", ep.iface.addrv6.IP, ep.Name(), ep.ID(), err)
+		}
 	}
 }

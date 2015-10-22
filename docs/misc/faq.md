@@ -31,14 +31,14 @@ https://github.com/docker/docker/blob/master/LICENSE)
 
 Docker currently runs only on Linux, but you can use VirtualBox to run Docker in
 a virtual machine on your box, and get the best of both worlds. Check out the
-[*Mac OS X*](../installation/mac/#macosx) and [*Microsoft
-Windows*](../installation/windows/#windows) installation guides. The small Linux
-distribution boot2docker can be run inside virtual machines on these two
+[*Mac OS X*](../installation/mac.md) and [*Microsoft
+Windows*](../installation/windows.md) installation guides. The small Linux
+distribution Docker Machine can be run inside virtual machines on these two
 operating systems.
 
-> **Note:** if you are using a remote Docker daemon, such as Boot2Docker, 
-> then _do not_ type the `sudo` before the `docker` commands shown in the
-> documentation's examples.
+>**Note:** if you are using a remote Docker daemon on a VM through Docker
+>Machine, then _do not_ type the `sudo` before the `docker` commands shown in
+>the documentation's examples.
 
 ### How do containers compare to virtual machines?
 
@@ -77,7 +77,7 @@ with several powerful functionalities:
 
  - *Automatic build.* Docker includes [*a tool for developers to automatically
  assemble a container from their source
- code*](../reference/builder/#dockerbuilder), with full control over application
+ code*](../reference/builder.md), with full control over application
  dependencies, build tools, packaging etc. They are free to use `make`, `maven`,
  `chef`, `puppet`, `salt,` Debian packages, RPMs, source tarballs, or any
  combination of the above, regardless of the configuration of the machines.
@@ -90,18 +90,17 @@ with several powerful functionalities:
  uploads and downloads, similar to `git pull`, so new versions of a container
  can be transferred by only sending diffs.
 
- - *Component re-use.* Any container can be used as a [*"base image"*](
- ../terms/image/#base-image-def) to create more specialized components. This can
+ - *Component re-use.* Any container can be used as a [*"base image"*](../reference/glossary.md#image) to create more specialized components. This can
  be done manually or as part of an automated build. For example you can prepare
  the ideal Python environment, and use it as a base for 10 different
- applications. Your ideal Postgresql setup can be re-used for all your future
+ applications. Your ideal PostgreSQL setup can be re-used for all your future
  projects. And so on.
 
- - *Sharing.* Docker has access to a [public registry](https://hub.docker.com)
- where thousands of people have uploaded useful containers: anything from Redis,
- CouchDB, Postgres to IRC bouncers to Rails app servers to Hadoop to base images
- for various Linux distros. The
- [*registry*](../reference/api/registry_index_spec/#registryindexspec) also
+ - *Sharing.* Docker has access to a public registry [on Docker Hub](https://hub.docker.com/)
+ where thousands of people have uploaded useful images: anything from Redis,
+ CouchDB, PostgreSQL to IRC bouncers to Rails app servers to Hadoop to base 
+ images for various Linux distros. The
+ [*registry*](https://docs.docker.com/registry/) also
  includes an official "standard library" of useful containers maintained by the
  Docker team. The registry itself is open-source, so anyone can deploy their own
  registry to store and transfer private containers, for internal server
@@ -137,10 +136,10 @@ thousands or even millions of containers running in parallel.
 ### How do I connect Docker containers?
 
 Currently the recommended way to link containers is via the link primitive. You
-can see details of how to [work with links here](/userguide/dockerlinks).
+can see details of how to [work with links here](../userguide/dockerlinks.md).
 
 Also useful for more flexible service portability is the [Ambassador linking
-pattern](/articles/ambassador_pattern_linking/).
+pattern](../articles/ambassador_pattern_linking.md).
 
 ### How do I run more than one process in a Docker container?
 
@@ -149,7 +148,7 @@ http://supervisord.org/), runit, s6, or daemontools can do the trick. Docker
 will start up the process management daemon which will then fork to run
 additional processes. As long as the processor manager daemon continues to run,
 the container will continue to as well. You can see a more substantial example
-[that uses supervisord here](/articles/using_supervisord/).
+[that uses supervisord here](../articles/using_supervisord.md).
 
 ### What platforms does Docker run on?
 
@@ -168,6 +167,7 @@ Cloud:
 
  - Amazon EC2 
  - Google Compute Engine 
+ - Microsoft Azure
  - Rackspace
 
 ### How do I report a security issue with Docker?
@@ -270,4 +270,4 @@ You can find more answers on:
 - [Ask questions on Stackoverflow](http://stackoverflow.com/search?q=docker) 
 - [Join the conversation on Twitter](http://twitter.com/docker)
 
-Looking for something else to read? Checkout the [User Guide](/userguide/).
+Looking for something else to read? Checkout the [User Guide](../userguide/).

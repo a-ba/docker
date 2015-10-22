@@ -1,26 +1,16 @@
 package graphdriver
 
-type DiffDiskDriver interface {
-	Driver
-	CopyDiff(id, sourceId string) error
-}
-
-const (
-	FsMagicWindows = FsMagic(0xa1b1830f)
-)
-
 var (
-	// Slice of drivers that should be used in an order
+	// Slice of drivers that should be used in order
 	priority = []string{
-		"windows",
-	}
-
-	FsNames = map[FsMagic]string{
-		FsMagicWindows:     "windows",
-		FsMagicUnsupported: "unsupported",
+		"windowsfilter",
+		"windowsdiff",
+		"vfs",
 	}
 )
 
+// GetFSMagic returns the filesystem id given the path.
 func GetFSMagic(rootpath string) (FsMagic, error) {
-	return FsMagicWindows, nil
+	// Note it is OK to return FsMagicUnsupported on Windows.
+	return FsMagicUnsupported, nil
 }

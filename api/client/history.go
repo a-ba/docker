@@ -3,10 +3,12 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/docker/docker/api/types"
+	Cli "github.com/docker/docker/cli"
 	flag "github.com/docker/docker/pkg/mflag"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/pkg/stringutils"
@@ -17,20 +19,23 @@ import (
 //
 // Usage: docker history [OPTIONS] IMAGE
 func (cli *DockerCli) CmdHistory(args ...string) error {
-	cmd := cli.Subcmd("history", "IMAGE", "Show the history of an image", true)
+	cmd := Cli.Subcmd("history", []string{"IMAGE"}, Cli.DockerCommands["history"].Description, true)
 	human := cmd.Bool([]string{"H", "-human"}, true, "Print sizes and dates in human readable format")
 	quiet := cmd.Bool([]string{"q", "-quiet"}, false, "Only show numeric IDs")
 	noTrunc := cmd.Bool([]string{"#notrunc", "-no-trunc"}, false, "Don't truncate output")
 	cmd.Require(flag.Exact, 1)
+
 	cmd.ParseFlags(args, true)
 
-	rdr, _, err := cli.call("GET", "/images/"+cmd.Arg(0)+"/history", nil, nil)
+	serverResp, err := cli.call("GET", "/images/"+cmd.Arg(0)+"/history", nil, nil)
 	if err != nil {
 		return err
 	}
 
+	defer serverResp.body.Close()
+
 	history := []types.ImageHistory{}
-	if err := json.NewDecoder(rdr).Decode(&history); err != nil {
+	if err := json.NewDecoder(serverResp.body).Decode(&history); err != nil {
 		return err
 	}
 
@@ -53,9 +58,9 @@ func (cli *DockerCli) CmdHistory(args ...string) error {
 			}
 
 			if *noTrunc {
-				fmt.Fprintf(w, "%s\t", entry.CreatedBy)
+				fmt.Fprintf(w, "%s\t", strings.Replace(entry.CreatedBy, "\t", " ", -1))
 			} else {
-				fmt.Fprintf(w, "%s\t", stringutils.Truncate(entry.CreatedBy, 45))
+				fmt.Fprintf(w, "%s\t", stringutils.Truncate(strings.Replace(entry.CreatedBy, "\t", " ", -1), 45))
 			}
 
 			if *human {

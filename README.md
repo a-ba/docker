@@ -1,19 +1,19 @@
-Docker: the Linux container engine
-==================================
+Docker: the container engine [![Release](https://img.shields.io/github/release/docker/docker.svg)](https://github.com/docker/docker/releases/latest)
+============================
 
 Docker is an open source project to pack, ship and run any application
 as a lightweight container.
 
 Docker containers are both *hardware-agnostic* and *platform-agnostic*.
 This means they can run anywhere, from your laptop to the largest
-EC2 compute instance and everything in between - and they don't require
+cloud compute instance and everything in between - and they don't require
 you to use a particular language, framework or packaging system. That
 makes them great building blocks for deploying and scaling web apps,
 databases, and backend services without depending on a particular stack
 or provider.
 
 Docker began as an open-source implementation of the deployment engine which
-powers [dotCloud](https://dotcloud.com), a popular Platform-as-a-Service.
+powers [dotCloud](https://www.dotcloud.com), a popular Platform-as-a-Service.
 It benefits directly from the experience accumulated over several years
 of large-scale operation and support of hundreds of thousands of
 applications and databases.
@@ -30,7 +30,7 @@ security@docker.com and not by creating a github issue.
 
 A common method for distributing applications and sandboxing their
 execution is to use virtual machines, or VMs. Typical VM formats are
-VMware's vmdk, Oracle Virtualbox's vdi, and Amazon EC2's ami. In theory
+VMware's vmdk, Oracle VirtualBox's vdi, and Amazon EC2's ami. In theory
 these formats should allow every developer to automatically package
 their application into a "machine" for easy distribution and deployment.
 In practice, that almost never happens, for a few reasons:
@@ -58,7 +58,7 @@ takes place at the kernel level. Most modern operating system kernels
 now support the primitives necessary for containerization, including
 Linux with [openvz](https://openvz.org),
 [vserver](http://linux-vserver.org) and more recently
-[lxc](http://lxc.sourceforge.net), Solaris with
+[lxc](https://linuxcontainers.org/), Solaris with
 [zones](https://docs.oracle.com/cd/E26502_01/html/E29024/preface-1.html#scrolltoc),
 and FreeBSD with
 [Jails](https://www.freebsd.org/doc/handbook/jails.html).
@@ -168,22 +168,23 @@ Under the hood
 Under the hood, Docker is built on the following components:
 
 * The
-  [cgroup](http://blog.dotcloud.com/kernel-secrets-from-the-paas-garage-part-24-c)
+  [cgroups](https://www.kernel.org/doc/Documentation/cgroups/cgroups.txt)
   and
-  [namespacing](http://blog.dotcloud.com/under-the-hood-linux-kernels-on-dotcloud-part)
+  [namespaces](http://man7.org/linux/man-pages/man7/namespaces.7.html)
   capabilities of the Linux kernel
 * The [Go](https://golang.org) programming language
 * The [Docker Image Specification](https://github.com/docker/docker/blob/master/image/spec/v1.md)
-* The [Libcontainer Specification](https://github.com/docker/libcontainer/blob/master/SPEC.md)
+* The [Libcontainer Specification](https://github.com/opencontainers/runc/blob/master/libcontainer/SPEC.md)
 
-Contributing to Docker
+Contributing to Docker [![GoDoc](https://godoc.org/github.com/docker/docker?status.svg)](https://godoc.org/github.com/docker/docker)
 ======================
 
-[![GoDoc](https://godoc.org/github.com/docker/docker?status.svg)](https://godoc.org/github.com/docker/docker)
-[![Jenkins Build Status](https://jenkins.dockerproject.org/job/Docker%20Master/badge/icon)](https://jenkins.dockerproject.org/job/Docker%20Master/)
+| **Master** (Linux) | **Experimental** (linux) | **Windows** | **FreeBSD** |
+|------------------|----------------------|---------|---------|
+| [![Jenkins Build Status](https://jenkins.dockerproject.org/view/Docker/job/Docker%20Master/badge/icon)](https://jenkins.dockerproject.org/view/Docker/job/Docker%20Master/) | [![Jenkins Build Status](https://jenkins.dockerproject.org/view/Docker/job/Docker%20Master%20%28experimental%29/badge/icon)](https://jenkins.dockerproject.org/view/Docker/job/Docker%20Master%20%28experimental%29/) | [![Build Status](http://jenkins.dockerproject.org/job/Docker%20Master%20(windows)/badge/icon)](http://jenkins.dockerproject.org/job/Docker%20Master%20(windows)/) | [![Build Status](http://jenkins.dockerproject.org/job/Docker%20Master%20(freebsd)/badge/icon)](http://jenkins.dockerproject.org/job/Docker%20Master%20(freebsd)/) |
 
 Want to hack on Docker? Awesome! We have [instructions to help you get
-started contributing code or documentation.](https://docs.docker.com/project/who-written-for/).
+started contributing code or documentation](https://docs.docker.com/project/who-written-for/).
 
 These instructions are probably not perfect, please let us know if anything
 feels wrong or incomplete. Better yet, submit a PR and improve them yourself.
@@ -247,7 +248,7 @@ We are always open to suggestions on process improvements, and are always lookin
   <tr>
     <td>Stack Overflow</td>
     <td>
-      Stack Overflow has over 7000K Docker questions listed. We regularly
+      Stack Overflow has over 7000 Docker questions listed. We regularly
       monitor <a href="https://stackoverflow.com/search?tab=newest&q=docker" target="_blank">Docker questions</a>
       and so do many other knowledgeable Docker users.
     </td>
@@ -289,7 +290,11 @@ system
 * [Docker Compose](https://github.com/docker/compose) (formerly Fig): 
 Define and run multi-container apps
 * [Kitematic](https://github.com/kitematic/kitematic): The easiest way to use 
-Docker on a Mac
+Docker on Mac and Windows
 
 If you know of another project underway that should be listed here, please help 
 us keep this list up-to-date by submitting a PR.
+
+Awesome-Docker
+==============
+You can find more projects, tools and articles related to Docker on the [awesome-docker list](https://github.com/veggiemonk/awesome-docker). Add your project there.

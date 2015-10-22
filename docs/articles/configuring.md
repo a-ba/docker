@@ -21,10 +21,10 @@ or `systemd` to manage the `docker` daemon's start and stop.
 
 ### Running the docker daemon directly
 
-The `docker` daemon can be run directly using the `-d` option. By default it listens on
+The `docker` daemon can be run directly using the `docker daemon` command. By default it listens on
 the Unix socket `unix:///var/run/docker.sock`
 
-    $ docker -d
+    $ docker daemon
 
     INFO[0000] +job init_networkdriver()
     INFO[0000] +job serveapi(unix:///var/run/docker.sock)
@@ -34,10 +34,9 @@ the Unix socket `unix:///var/run/docker.sock`
 
 ### Configuring the docker daemon directly
 
-If you're running the `docker` daemon directly by running `docker -d` instead
+If you're running the `docker` daemon directly by running `docker daemon` instead
 of using a process manager, you can append the configuration options to the `docker` run
-command directly. Just like the `-d` option, other options can be passed to the `docker`
-daemon to configure it.
+command directly. Other options can be passed to the `docker` daemon to configure it.
 
 Some of the daemon's options are:
 
@@ -50,7 +49,7 @@ Some of the daemon's options are:
 
 Here is a an example of running the `docker` daemon with configuration options:
 
-    $ docker -d -D --tls=true --tlscert=/var/docker/server.pem --tlskey=/var/docker/serverkey.pem -H tcp://192.168.59.3:2376
+    $ docker daemon -D --tls=true --tlscert=/var/docker/server.pem --tlskey=/var/docker/serverkey.pem -H tcp://192.168.59.3:2376
 
 These options :
 
@@ -58,7 +57,7 @@ These options :
 - Set `tls` to true with the server certificate and key specified using `--tlscert` and `--tlskey` respectively
 - Listen for connections on `tcp://192.168.59.3:2376`
 
-The command line reference has the [complete list of daemon flags](/reference/commandline/cli/#daemon)
+The command line reference has the [complete list of daemon flags](../reference/commandline/daemon.md)
 with explanations.
 
 ## Ubuntu
@@ -66,7 +65,7 @@ with explanations.
 As of `14.04`, Ubuntu uses Upstart as a process manager. By default, Upstart jobs
 are located in  `/etc/init` and the `docker` Upstart job can be found at `/etc/init/docker.conf`.
 
-After successfully [installing Docker for Ubuntu](/installation/ubuntulinux/),
+After successfully [installing Docker for Ubuntu](../installation/ubuntulinux.md),
 you can check the running status using Upstart in this way:
 
     $ sudo status docker
@@ -115,7 +114,7 @@ These options :
 - Set `tls` to true with the server certificate and key specified using `--tlscert` and `--tlskey` respectively
 - Listen for connections on `tcp://192.168.59.3:2376`
 
-The command line reference has the [complete list of daemon flags](/reference/commandline/cli/#daemon)
+The command line reference has the [complete list of daemon flags](../reference/commandline/daemon.md)
 with explanations.
 
 
@@ -151,8 +150,7 @@ can be located at `/var/log/upstart/docker.log`
 As of `7.x`, CentOS and RHEL use `systemd` as the process manager. As of `21`, Fedora uses
 `systemd` as its process manager.
 
-After successfully installing Docker for [CentOS](/installation/centos/)/[Red Hat Enterprise Linux]
-(/installation/rhel/)/[Fedora](/installation/fedora), you can check the running status in this way:
+After successfully installing Docker for [CentOS](../installation/centos.md)/[Red Hat Enterprise Linux](../installation/rhel.md)/[Fedora](../installation/fedora.md), you can check the running status in this way:
 
     $ sudo systemctl status docker
 
@@ -208,7 +206,7 @@ These options :
 - Set `tls` to true with the server certificate and key specified using `--tlscert` and `--tlskey` respectively
 - Listen for connections on `tcp://192.168.59.3:2376`
 
-The command line reference has the [complete list of daemon flags](/reference/commandline/cli/#daemon)
+The command line reference has the [complete list of daemon flags](../reference/commandline/daemon.md)
 with explanations.
 
 5. Save and close the file.
@@ -216,7 +214,7 @@ with explanations.
 6. Restart the `docker` daemon.
 
     ```
-    $ sudo service docker restart
+    $ sudo systemctl restart docker
     ```
 
 7. Verify that the `docker` daemon is running as specified with the `ps` command.

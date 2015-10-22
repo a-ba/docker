@@ -33,17 +33,33 @@ If you want Docker to start at boot, you should also:
 There are a number of ways to configure the daemon flags and environment variables
 for your Docker daemon.
 
-If the `docker.service` file is set to use an `EnvironmentFile`
-(often pointing to `/etc/sysconfig/docker`) then you can modify the
-referenced file.
+The recommended way is to use a systemd drop-in file. These are local files in
+the `/etc/systemd/system/docker.service.d` directory. This could also be
+`/etc/systemd/system/docker.service`, which also works for overriding the
+defaults from `/lib/systemd/system/docker.service`.
 
-Check if the `docker.service` uses an `EnvironmentFile`:
+However, if you had previously used a package which had an `EnvironmentFile`
+(often pointing to `/etc/sysconfig/docker`) then for backwards compatibility,
+you drop a file in the `/etc/systemd/system/docker.service.d`
+directory including the following:
+
+    [Service]
+    EnvironmentFile=-/etc/sysconfig/docker
+    EnvironmentFile=-/etc/sysconfig/docker-storage
+    EnvironmentFile=-/etc/sysconfig/docker-network
+    ExecStart=
+    ExecStart=/usr/bin/docker daemon -H fd:// $OPTIONS \
+              $DOCKER_STORAGE_OPTIONS \
+              $DOCKER_NETWORK_OPTIONS \
+              $BLOCK_REGISTRY \
+              $INSECURE_REGISTRY
+
+To check if the `docker.service` uses an `EnvironmentFile`:
 
     $ sudo systemctl show docker | grep EnvironmentFile
     EnvironmentFile=-/etc/sysconfig/docker (ignore_errors=yes)
 
-Alternatively, find out where the service file is located, and look for the
-property:
+Alternatively, find out where the service file is located:
 
     $ sudo systemctl status docker | grep Loaded
        Loaded: loaded (/usr/lib/systemd/system/docker.service; enabled)
@@ -51,7 +67,7 @@ property:
     EnvironmentFile=-/etc/sysconfig/docker
 
 You can customize the Docker daemon options using override files as explained in the
-[HTTP Proxy example](#http-proxy) below. The files located in `/usr/lib/systemd/system` 
+[HTTP Proxy example](#http-proxy) below. The files located in `/usr/lib/systemd/system`
 or `/lib/systemd/system` contain the default options and should not be edited.
 
 ### Runtime directory and storage driver
@@ -69,21 +85,34 @@ In this example, we'll assume that your `docker.service` file looks something li
 
     [Service]
     Type=notify
-    EnvironmentFile=-/etc/sysconfig/docker
-    ExecStart=/usr/bin/docker -d -H fd:// $OPTIONS
+    ExecStart=/usr/bin/docker daemon -H fd://
     LimitNOFILE=1048576
     LimitNPROC=1048576
 
     [Install]
     Also=docker.socket
 
-This will allow us to add extra flags to the `/etc/sysconfig/docker` file by
-setting `OPTIONS`:
+This will allow us to add extra flags via a drop-in file (mentioned above) by
+placing a file containing the following in the `/etc/systemd/system/docker.service.d`
+directory:
 
-    OPTIONS="--graph /mnt/docker-data --storage-driver btrfs"
+    [Service]
+    ExecStart=
+    ExecStart=/usr/bin/docker daemon -H fd:// --graph /mnt/docker-data --storage-driver btrfs
 
 You can also set other environment variables in this file, for example, the
 `HTTP_PROXY` environment variables described below.
+
+To modify the ExecStart configuration, specify an empty configuration followed
+by a new configuration as follows:
+
+    [Service]
+    ExecStart=
+    ExecStart=/usr/bin/docker daemon -H fd:// --bip=172.17.42.1/16
+
+If you fail to specify an empty configuration, Docker reports an error such as:
+
+    docker.service has more than one ExecStart= setting, which is only allowed for Type=oneshot services. Refusing.
 
 ### HTTP proxy
 
@@ -127,5 +156,3 @@ to integrate Docker with systemd. For this, simply install the two unit files
 (service and socket) from [the github
 repository](https://github.com/docker/docker/tree/master/contrib/init/systemd)
 to `/etc/systemd/system`.
-
-

@@ -7,15 +7,19 @@ docker \- Docker image and container command line interface
 # SYNOPSIS
 **docker** [OPTIONS] COMMAND [arg...]
 
+**docker** daemon [ --help | ... ]
+
+**docker** [ --help | -v | --version ]
+
 # DESCRIPTION
 **docker** has two distinct functions. It is used for starting the Docker
 daemon and to run the CLI (i.e., to command the daemon to manage images,
 containers etc.) So **docker** is both a server, as a daemon, and a client
 to the daemon, through the CLI.
 
-To run the Docker daemon you do not specify any of the commands listed below but
-must specify the **-d** option.  The other options listed below are for the
-daemon only.
+To run the Docker daemon you can specify **docker daemon**.
+You can view the daemon options using **docker daemon --help**.
+To see the man page for the daemon, run **man docker daemon**.
 
 The Docker CLI has over 30 commands. The commands are listed below and each has
 its own man page which explain usage and arguments.
@@ -23,118 +27,40 @@ its own man page which explain usage and arguments.
 To see the man page for a command run **man docker <command>**.
 
 # OPTIONS
-**-h**, **--help**
+**--help**
   Print usage statement
 
-**--api-cors-header**=""
-  Set CORS headers in the remote API. Default is cors disabled. Give urls like "http://foo, http://bar, ...". Give "*" to allow all.
-
-**-b**, **--bridge**=""
-  Attach containers to a pre\-existing network bridge; use 'none' to disable container networking
-
-**--bip**=""
-  Use the provided CIDR notation address for the dynamically created bridge (docker0); Mutually exclusive of \-b
+**--config**=""
+  Specifies the location of the Docker client configuration files. The default is '~/.docker'.
 
 **-D**, **--debug**=*true*|*false*
   Enable debug mode. Default is false.
 
-**-d**, **--daemon**=*true*|*false*
-  Enable daemon mode. Default is false.
-
-**--default-gateway**=""
-  IPv4 address of the container default gateway; this address must be part of the bridge subnet (which is defined by \-b or \--bip)
-
-**--default-gateway-v6**=""
-  IPv6 address of the container default gateway
-
-**--dns**=""
-  Force Docker to use specific DNS servers
-
-**-e**, **--exec-driver**=""
-  Force Docker to use specific exec driver. Default is `native`.
-
-**--exec-opt**=[]
-  Set exec driver options. See EXEC DRIVER OPTIONS.
-
-**--exec-root**=""
-  Path to use as the root of the Docker execdriver. Default is `/var/run/docker`.
-
-**--fixed-cidr**=""
-  IPv4 subnet for fixed IPs (e.g., 10.20.0.0/16); this subnet must be nested in the bridge subnet (which is defined by \-b or \-\-bip)
-
-**--fixed-cidr-v6**=""
-  IPv6 subnet for global IPv6 addresses (e.g., 2a00:1450::/64)
-
-**-G**, **--group**=""
-  Group to assign the unix socket specified by -H when running in daemon mode.
-  use '' (the empty string) to disable setting of a group. Default is `docker`.
-
-**-g**, **--graph**=""
-  Path to use as the root of the Docker runtime. Default is `/var/lib/docker`.
-
-**-H**, **--host**=[unix:///var/run/docker.sock]: tcp://[host:port] to bind or
+**-H**, **--host**=[unix:///var/run/docker.sock]: tcp://[host]:[port][path] to bind or
 unix://[/path/to/socket] to use.
   The socket(s) to bind to in daemon mode specified using one or more
-  tcp://host:port, unix:///path/to/socket, fd://* or fd://socketfd.
-
-**--icc**=*true*|*false*
-  Allow unrestricted inter\-container and Docker daemon host communication. If disabled, containers can still be linked together using **--link** option (see **docker-run(1)**). Default is true.
-
-**--ip**=""
-  Default IP address to use when binding container ports. Default is `0.0.0.0`.
-
-**--ip-forward**=*true*|*false*
-  Docker will enable IP forwarding. Default is true. If `--fixed-cidr-v6` is set. IPv6 forwarding will be activated, too. This may reject Router Advertisements and interfere with the host's existing IPv6 configuration. For more information please consult the documentation about "Advanced Networking - IPv6".
-
-**--ip-masq**=*true*|*false*
-  Enable IP masquerading for bridge's IP range. Default is true.
-
-**--iptables**=*true*|*false*
-  Enable Docker's addition of iptables rules. Default is true.
-
-**--ipv6**=*true*|*false*
-  Enable IPv6 support. Default is false. Docker will create an IPv6-enabled bridge with address fe80::1 which will allow you to create IPv6-enabled containers. Use together with `--fixed-cidr-v6` to provide globally routable IPv6 addresses. IPv6 forwarding will be enabled if not used with `--ip-forward=false`. This may collide with your host's current IPv6 settings. For more information please consult the documentation about "Advanced Networking - IPv6".
+  tcp://host:port/path, unix:///path/to/socket, fd://* or fd://socketfd.
+  If the tcp port is not specified, then it will default to either `2375` when
+  `--tls` is off, or `2376` when `--tls` is on, or `--tlsverify` is specified.
 
 **-l**, **--log-level**="*debug*|*info*|*warn*|*error*|*fatal*""
   Set the logging level. Default is `info`.
 
-**--label**="[]"
-  Set key=value labels to the daemon (displayed in `docker info`)
-
-**--log-driver**="*json-file*|*syslog*|*journald*|*none*"
-  Default driver for container logs. Default is `json-file`.
-  **Warning**: `docker logs` command works only for `json-file` logging driver.
-
-**--log-opt**=[]
-  Logging driver specific options.
-
-**--mtu**=VALUE
-  Set the containers network mtu. Default is `0`.
-
-**-p**, **--pidfile**=""
-  Path to use for daemon PID file. Default is `/var/run/docker.pid`
-
-**--registry-mirror**=<scheme>://<host>
-  Prepend a registry mirror to be used for image pulls. May be specified multiple times.
-
-**-s**, **--storage-driver**=""
-  Force the Docker runtime to use a specific storage driver.
-
-**--selinux-enabled**=*true*|*false*
-  Enable selinux support. Default is false. SELinux does not presently support the BTRFS storage driver.
-
-**--storage-opt**=[]
-  Set storage driver options. See STORAGE DRIVER OPTIONS.
-
-**-tls**=*true*|*false*
+**--tls**=*true*|*false*
   Use TLS; implied by --tlsverify. Default is false.
 
-**-tlsverify**=*true*|*false*
+**--tlscacert**=~/.docker/ca.pem
+  Trust certs signed only by this CA.
+
+**--tlscert**=~/.docker/cert.pem
+  Path to TLS certificate file.
+
+**--tlskey**=~/.docker/key.pem
+  Path to TLS key file.
+
+**--tlsverify**=*true*|*false*
   Use TLS and verify the remote (daemon: verify client, client: verify daemon).
   Default is false.
-
-**--userland-proxy**=*true*|*false*
-    Rely on a userland proxy implementation for inter-container and outside-to-container loopback communications. Default is true.
 
 **-v**, **--version**=*true*|*false*
   Print version information and quit. Default is false.
@@ -153,7 +79,7 @@ unix://[/path/to/socket] to use.
   See **docker-commit(1)** for full documentation on the **commit** command.
 
 **cp**
-  Copy files/folders from a container's filesystem to the host
+  Copy files/folders between a container and the local filesystem
   See **docker-cp(1)** for full documentation on the **cp** command.
 
 **create**
@@ -237,8 +163,12 @@ inside it)
   Push an image or a repository to a Docker Registry
   See **docker-push(1)** for full documentation on the **push** command.
 
+**rename**
+  Rename a container.
+  See **docker-rename(1)** for full documentation on the **rename** command.
+
 **restart**
-  Restart a running container
+  Restart a container
   See **docker-restart(1)** for full documentation on the **restart** command.
 
 **rm**
@@ -262,7 +192,7 @@ inside it)
   See **docker-search(1)** for full documentation on the **search** command.
 
 **start**
-  Start a stopped container
+  Start a container
   See **docker-start(1)** for full documentation on the **start** command.
 
 **stats**
@@ -270,7 +200,7 @@ inside it)
   See **docker-stats(1)** for full documentation on the **stats** command.
 
 **stop**
-  Stop a running container
+  Stop a container
   See **docker-stop(1)** for full documentation on the **stop** command.
 
 **tag**
@@ -292,82 +222,6 @@ inside it)
 **wait**
   Block until a container stops, then print its exit code
   See **docker-wait(1)** for full documentation on the **wait** command.
-
-# STORAGE DRIVER OPTIONS
-
-Options to storage backend can be specified with **--storage-opt** flags. The
-only backend which currently takes options is *devicemapper*. Therefore use these
-flags with **-s=**devicemapper.
-
-Here is the list of *devicemapper* options:
-
-#### dm.basesize
-Specifies the size to use when creating the base device, which limits the size
-of images and containers. The default value is 10G. Note, thin devices are
-inherently "sparse", so a 10G device which is mostly empty doesn't use 10 GB
-of space on the pool. However, the filesystem will use more space for the empty
-case the larger the device is. **Warning**: This value affects the system-wide
-"base" empty filesystem that may already be initialized and inherited by pulled
-images.
-
-#### dm.loopdatasize
-Specifies the size to use when creating the loopback file for the "data"
-device which is used for the thin pool. The default size is 100G. Note that the
-file is sparse, so it will not initially take up this much space.
-
-#### dm.loopmetadatasize
-Specifies the size to use when creating the loopback file for the "metadadata"
-device which is used for the thin pool. The default size is 2G. Note that the
-file is sparse, so it will not initially take up this much space.
-
-#### dm.fs
-Specifies the filesystem type to use for the base device. The supported
-options are "ext4" and "xfs". The default is "ext4"
-
-#### dm.mkfsarg
-Specifies extra mkfs arguments to be used when creating the base device.
-
-#### dm.mountopt
-Specifies extra mount options used when mounting the thin devices.
-
-#### dm.datadev
-Specifies a custom blockdevice to use for data for the thin pool.
-
-If using a block device for device mapper storage, ideally both datadev and
-metadatadev should be specified to completely avoid using the loopback device.
-
-#### dm.metadatadev
-Specifies a custom blockdevice to use for metadata for the thin pool.
-
-For best performance the metadata should be on a different spindle than the
-data, or even better on an SSD.
-
-If setting up a new metadata pool it is required to be valid. This can be
-achieved by zeroing the first 4k to indicate empty metadata, like this:
-
-    dd if=/dev/zero of=/dev/metadata_dev bs=4096 count=1
-
-#### dm.blocksize
-Specifies a custom blocksize to use for the thin pool. The default blocksize
-is 64K.
-
-#### dm.blkdiscard
-Enables or disables the use of blkdiscard when removing devicemapper devices.
-This is enabled by default (only) if using loopback devices and is required to
-resparsify the loopback file on image/container removal.
-
-Disabling this on loopback can lead to *much* faster container removal times,
-but will prevent the space used in `/var/lib/docker` directory from being returned to
-the system for other use when containers are removed.
-
-# EXAMPLES
-Launching docker daemon with *devicemapper* backend with particular block devices
-for data and metadata:
-
-    docker -d -s=devicemapper \
-      --storage-opt dm.datadev=/dev/vdb \
-      --storage-opt dm.metadatadev=/dev/vdc \
-      --storage-opt dm.basesize=20G
 
 # EXEC DRIVER OPTIONS
 

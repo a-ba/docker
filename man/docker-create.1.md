@@ -12,49 +12,66 @@ docker-create - Create a new container
 [**-c**|**--cpu-shares**[=*0*]]
 [**--cap-add**[=*[]*]]
 [**--cap-drop**[=*[]*]]
+[**--cgroup-parent**[=*CGROUP-PATH*]]
 [**--cidfile**[=*CIDFILE*]]
 [**--cpu-period**[=*0*]]
+[**--cpu-quota**[=*0*]]
 [**--cpuset-cpus**[=*CPUSET-CPUS*]]
 [**--cpuset-mems**[=*CPUSET-MEMS*]]
-[**--cpu-quota**[=*0*]]
 [**--device**[=*[]*]]
-[**--dns-search**[=*[]*]]
 [**--dns**[=*[]*]]
+[**--dns-search**[=*[]*]]
+[**--dns-opt**[=*[]*]]
 [**-e**|**--env**[=*[]*]]
 [**--entrypoint**[=*ENTRYPOINT*]]
 [**--env-file**[=*[]*]]
 [**--expose**[=*[]*]]
+[**--group-add**[=*[]*]]
 [**-h**|**--hostname**[=*HOSTNAME*]]
 [**--help**]
 [**-i**|**--interactive**[=*false*]]
 [**--ipc**[=*IPC*]]
+[**--kernel-memory**[=*KERNEL-MEMORY*]]
 [**-l**|**--label**[=*[]*]]
 [**--label-file**[=*[]*]]
 [**--link**[=*[]*]]
-[**--lxc-conf**[=*[]*]]
 [**--log-driver**[=*[]*]]
 [**--log-opt**[=*[]*]]
+[**--lxc-conf**[=*[]*]]
 [**-m**|**--memory**[=*MEMORY*]]
-[**--memory-swap**[=*MEMORY-SWAP*]]
 [**--mac-address**[=*MAC-ADDRESS*]]
+[**--memory-reservation**[=*MEMORY-RESERVATION*]]
+[**--memory-swap**[=*MEMORY-SWAP*]]
+[**--memory-swappiness**[=*MEMORY-SWAPPINESS*]]
 [**--name**[=*NAME*]]
 [**--net**[=*"bridge"*]]
 [**--oom-kill-disable**[=*false*]]
 [**-P**|**--publish-all**[=*false*]]
 [**-p**|**--publish**[=*[]*]]
 [**--pid**[=*[]*]]
-[**--uts**[=*[]*]]
 [**--privileged**[=*false*]]
 [**--read-only**[=*false*]]
 [**--restart**[=*RESTART*]]
 [**--security-opt**[=*[]*]]
+[**--stop-signal**[=*SIGNAL*]]
 [**-t**|**--tty**[=*false*]]
 [**-u**|**--user**[=*USER*]]
+[**--ulimit**[=*[]*]]
+[**--uts**[=*[]*]]
 [**-v**|**--volume**[=*[]*]]
 [**--volumes-from**[=*[]*]]
 [**-w**|**--workdir**[=*WORKDIR*]]
-[**--cgroup-parent**[=*CGROUP-PATH*]]
 IMAGE [COMMAND] [ARG...]
+
+# DESCRIPTION
+
+Creates a writeable container layer over the specified image and prepares it for
+running the specified command. The container ID is then printed to STDOUT. This
+is similar to **docker run -d** except the container is never started. You can 
+then use the **docker start <container_id>** command to start the container at
+any point.
+
+The initial status of the container created with **docker create** is 'created'.
 
 # OPTIONS
 **-a**, **--attach**=[]
@@ -75,13 +92,13 @@ IMAGE [COMMAND] [ARG...]
 **--cap-drop**=[]
    Drop Linux capabilities
 
-**--cidfile**=""
-   Write the container ID to the file
-
 **--cgroup-parent**=""
    Path to cgroups under which the cgroup for the container will be created. If the path is not absolute, the path is considered to be relative to the cgroups path of the init process. Cgroups will be created if they do not already exist.
 
-**--cpu-peroid**=0
+**--cidfile**=""
+   Write the container ID to the file
+
+**--cpu-period**=0
     Limit the CPU CFS (Completely Fair Scheduler) period
 
 **--cpuset-cpus**=""
@@ -94,17 +111,20 @@ IMAGE [COMMAND] [ARG...]
 then processes in your Docker container will only use memory from the first
 two memory nodes.
 
-**-cpu-quota**=0
+**--cpu-quota**=0
    Limit the CPU CFS (Completely Fair Scheduler) quota
 
 **--device**=[]
    Add a host device to the container (e.g. --device=/dev/sdc:/dev/xvdc:rwm)
 
-**--dns-search**=[]
-   Set custom DNS search domains (Use --dns-search=. if you don't wish to set the search domain)
-
 **--dns**=[]
    Set custom DNS servers
+
+**--dns-opt**=[]
+   Set custom DNS options
+
+**--dns-search**=[]
+   Set custom DNS search domains (Use --dns-search=. if you don't wish to set the search domain)
 
 **-e**, **--env**=[]
    Set environment variables
@@ -113,10 +133,13 @@ two memory nodes.
    Overwrite the default ENTRYPOINT of the image
 
 **--env-file**=[]
-   Read in a line delimited file of environment variables
+   Read in a line-delimited file of environment variables
 
 **--expose**=[]
    Expose a port or a range of ports (e.g. --expose=3300-3310) from the container without publishing it to your host
+
+**--group-add**=[]
+   Add additional groups to run as
 
 **-h**, **--hostname**=""
    Container host name
@@ -132,6 +155,15 @@ two memory nodes.
                                'container:<name|id>': reuses another container shared memory, semaphores and message queues
                                'host': use the host shared memory,semaphores and message queues inside the container.  Note: the host mode gives the container full access to local shared memory and is therefore considered insecure.
 
+**--kernel-memory**=""
+   Kernel memory limit (format: `<number>[<unit>]`, where unit = b, k, m or g)
+
+   Constrains the kernel memory available to a container. If a limit of 0
+is specified (not using `--kernel-memory`), the container's kernel memory
+is not limited. If you specify a limit, it may be rounded up to a multiple
+of the operating system's page size and the value can be very large,
+millions of trillions.
+
 **-l**, **--label**=[]
    Adds metadata to a container (e.g., --label=com.example.key=value)
 
@@ -142,18 +174,19 @@ two memory nodes.
    Add link to another container in the form of <name or id>:alias or just
    <name or id> in which case the alias will match the name.
 
-**--lxc-conf**=[]
-   (lxc exec-driver only) Add custom lxc options --lxc-conf="lxc.cgroup.cpuset.cpus = 0,1"
-
-**--log-driver**="|*json-file*|*syslog*|*journald*|*none*"
+**--log-driver**="|*json-file*|*syslog*|*journald*|*gelf*|*fluentd*|*awslogs*|*none*"
   Logging driver for container. Default is defined by daemon `--log-driver` flag.
-  **Warning**: `docker logs` command works only for `json-file` logging driver.
+  **Warning**: the `docker logs` command works only for the `json-file` and
+  `journald` logging drivers.
 
 **--log-opt**=[]
   Logging driver specific options.
 
+**--lxc-conf**=[]
+   (lxc exec-driver only) Add custom lxc options --lxc-conf="lxc.cgroup.cpuset.cpus = 0,1"
+
 **-m**, **--memory**=""
-   Memory limit (format: <number><optional unit>, where unit = b, k, m or g)
+   Memory limit (format: <number>[<unit>], where unit = b, k, m or g)
 
    Allows you to constrain the memory available to a container. If the host
 supports swap memory, then the **-m** memory setting can be larger than physical
@@ -161,14 +194,26 @@ RAM. If a limit of 0 is specified (not using **-m**), the container's memory is
 not limited. The actual limit may be rounded up to a multiple of the operating
 system's page size (the value would be very large, that's millions of trillions).
 
+**--mac-address**=""
+   Container MAC address (e.g. 92:d0:c6:0a:29:33)
+
+**--memory-reservation**=""
+   Memory soft limit (format: <number>[<unit>], where unit = b, k, m or g)
+
+   After setting memory reservation, when the system detects memory contention
+or low memory, containers are forced to restrict their consumption to their
+reservation. So you should always set the value below **--memory**, otherwise the
+hard limit will take precedence. By default, memory reservation will be the same
+as memory limit.
+
 **--memory-swap**=""
    Total memory limit (memory + swap)
 
-   Set `-1` to disable swap (format: <number><optional unit>, where unit = b, k, m or g).
+   Set `-1` to disable swap (format: <number>[<unit>], where unit = b, k, m or g).
 This value should always larger than **-m**, so you should always use this with **-m**.
 
-**--mac-address**=""
-   Container MAC address (e.g. 92:d0:c6:0a:29:33)
+**--memory-swappiness**=""
+   Tune a container's memory swappiness behavior. Accepts an integer between 0 and 100.
 
 **--name**=""
    Assign a name to the container
@@ -198,11 +243,6 @@ This value should always larger than **-m**, so you should always use this with 
      **host**: use the host's PID namespace inside the container.
      Note: the host mode gives the container full access to local PID and is therefore considered insecure.
 
-**--uts**=host
-   Set the UTS mode for the container
-     **host**: use the host's UTS namespace inside the container.
-     Note: the host mode gives the container access to changing the host's hostname and is therefore considered insecure.
-
 **--privileged**=*true*|*false*
    Give extended privileges to this container. The default is *false*.
 
@@ -210,16 +250,27 @@ This value should always larger than **-m**, so you should always use this with 
    Mount the container's root filesystem as read only.
 
 **--restart**="no"
-   Restart policy to apply when a container exits (no, on-failure[:max-retry], always)
+   Restart policy to apply when a container exits (no, on-failure[:max-retry], always, unless-stopped).
 
 **--security-opt**=[]
    Security Options
+
+**--stop-signal**=SIGTERM
+  Signal to stop a container. Default is SIGTERM.
 
 **-t**, **--tty**=*true*|*false*
    Allocate a pseudo-TTY. The default is *false*.
 
 **-u**, **--user**=""
    Username or UID
+
+**--ulimit**=[]
+   Ulimit options
+
+**--uts**=host
+   Set the UTS mode for the container
+     **host**: use the host's UTS namespace inside the container.
+     Note: the host mode gives the container access to changing the host's hostname and is therefore considered insecure.
 
 **-v**, **--volume**=[]
    Bind mount a volume (e.g., from the host: -v /host:/container, from Docker: -v /container)

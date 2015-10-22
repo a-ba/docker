@@ -2,11 +2,12 @@
 % Docker Community
 % JUNE 2014
 # NAME
-docker-export - Export the contents of a filesystem as a tar archive to STDOUT
+docker-export - Export the contents of a container's filesystem as a tar archive
 
 # SYNOPSIS
 **docker export**
 [**--help**]
+[**-o**|**--output**[=*""*]]
 CONTAINER
 
 # DESCRIPTION
@@ -19,8 +20,9 @@ Stream to a file instead of STDOUT by using **-o**.
 # OPTIONS
 **--help**
   Print usage statement
+  
 **-o**, **--output**=""
-   Write to a file, instead of STDOUT
+  Write to a file, instead of STDOUT
 
 # EXAMPLES
 Export the contents of the container called angry_bell to a tar file
@@ -41,4 +43,4 @@ and import the contents of the tarball into it, then optionally tag it.
 April 2014, Originally compiled by William Henry (whenry at redhat dot com)
 based on docker.com source material and internal work.
 June 2014, updated by Sven Dowideit <SvenDowideit@home.org.au>
-Janurary 2015, updated by Joseph Kern (josephakern at gmail dot com)
+January 2015, updated by Joseph Kern (josephakern at gmail dot com)

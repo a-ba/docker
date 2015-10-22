@@ -16,15 +16,14 @@ parent = "mn_reference"
 </style>
 # Docker run reference
 
-**Docker runs processes in isolated containers**. When an operator
-executes `docker run`, she starts a process with its own file system,
-its own networking, and its own isolated process tree.  The
-[*Image*](/terms/image/#image) which starts the process may define
-defaults related to the binary to run, the networking to expose, and
-more, but `docker run` gives final control to the operator who starts
-the container from the image. That's the main reason
-[*run*](/reference/commandline/cli/#run) has more options than any
-other `docker` command.
+Docker runs processes in isolated containers. A container is a process
+which runs on a host. The host may be local or remote. When an operator
+executes `docker run`, the container process that runs is isolated in
+that it has its own file system, its own networking, and its own
+isolated process tree separate from the host.
+
+This page details how to use the `docker run` command to define the
+container's resources at runtime.
 
 ## General form
 
@@ -32,46 +31,51 @@ The basic `docker run` command takes this form:
 
     $ docker run [OPTIONS] IMAGE[:TAG|@DIGEST] [COMMAND] [ARG...]
 
-To learn how to interpret the types of `[OPTIONS]`,
-see [*Option types*](/reference/commandline/cli/#option-types).
-
-The `run` options control the image's runtime behavior in a container. These
-settings affect:
+The `docker run` command must specify an [*IMAGE*](glossary.md#image)
+to derive the container from. An image developer can define image
+defaults related to:
 
  * detached or foreground running
  * container identification
  * network settings
  * runtime constraints on CPU and memory
  * privileges and LXC configuration
- 
-An image developer may set defaults for these same settings when they create the
-image using the `docker build` command. Operators, however, can override all
-defaults set by the developer using the `run` options.  And, operators can also
-override nearly all the defaults set by the Docker runtime itself.
 
-Finally, depending on your Docker system configuration, you may be required to
-preface each `docker` command with `sudo`. To avoid having to use `sudo` with
-the `docker` command, your system administrator can create a Unix group called
-`docker` and add users to it. For more information about this configuration,
-refer to the Docker installation documentation for your operating system.
+With the `docker run [OPTIONS]` an operator can add to or override the
+image defaults set by a developer. And, additionally, operators can
+override nearly all the defaults set by the Docker runtime itself. The
+operator's ability to override image and Docker runtime defaults is why
+[*run*](commandline/run.md) has more options than any
+other `docker` command.
+
+To learn how to interpret the types of `[OPTIONS]`, see [*Option
+types*](commandline/cli.md#option-types).
+
+> **Note**: Depending on your Docker system configuration, you may be
+> required to preface the `docker run` command with `sudo`. To avoid
+> having to use `sudo` with the `docker` command, your system
+> administrator can create a Unix group called `docker` and add users to
+> it. For more information about this configuration, refer to the Docker
+> installation documentation for your operating system.
+
 
 ## Operator exclusive options
 
 Only the operator (the person executing `docker run`) can set the
 following options.
 
- - [Detached vs Foreground](#detached-vs-foreground)
+ - [Detached vs foreground](#detached-vs-foreground)
      - [Detached (-d)](#detached-d)
      - [Foreground](#foreground)
- - [Container Identification](#container-identification)
+ - [Container identification](#container-identification)
      - [Name (--name)](#name-name)
-     - [PID Equivalent](#pid-equivalent)
- - [IPC Settings (--ipc)](#ipc-settings-ipc)
- - [Network Settings](#network-settings)
- - [Restart Policies (--restart)](#restart-policies-restart)
- - [Clean Up (--rm)](#clean-up-rm)
- - [Runtime Constraints on CPU and Memory](#runtime-constraints-on-cpu-and-memory)
- - [Runtime Privilege, Linux Capabilities, and LXC Configuration](#runtime-privilege-linux-capabilities-and-lxc-configuration)
+     - [PID equivalent](#pid-equivalent)
+ - [IPC settings (--ipc)](#ipc-settings-ipc)
+ - [Network settings](#network-settings)
+ - [Restart policies (--restart)](#restart-policies-restart)
+ - [Clean up (--rm)](#clean-up-rm)
+ - [Runtime constraints on resources](#runtime-constraints-on-resources)
+ - [Runtime privilege, Linux capabilities, and LXC configuration](#runtime-privilege-linux-capabilities-and-lxc-configuration)
 
 ## Detached vs foreground
 
@@ -83,12 +87,30 @@ default foreground mode:
 
 ### Detached (-d)
 
-In detached mode (`-d=true` or just `-d`), all I/O should be done
-through network connections or shared volumes because the container is
-no longer listening to the command line where you executed `docker run`.
-You can reattach to a detached container with `docker`
-[*attach*](/reference/commandline/cli/#attach). If you choose to run a
-container in the detached mode, then you cannot use the `--rm` option.
+To start a container in detached mode, you use `-d=true` or just `-d` option. By
+design, containers started in detached mode exit when the root process used to
+run the container exits. A container in detached mode cannot be automatically
+removed when it stops, this means you cannot use the `--rm` option with `-d` option.
+
+Do not pass a `service x start` command to a detached container. For example, this
+command attempts to start the `nginx` service.
+
+    $ docker run -d -p 80:80 my_image service nginx start
+
+This succeeds in starting the `nginx` service inside the container. However, it
+fails the detached container paradigm in that, the root process (`service nginx
+start`) returns and the detached container stops as designed. As a result, the
+`nginx` service is started but could not be used. Instead, to start a process
+such as the `nginx` web server do the following:
+
+    $ docker run -d -p 80:80 my_image nginx -g 'daemon off;'
+
+To do input/output with a detached container use network connections or shared
+volumes. These are required because the container is no longer listening to the
+command line where `docker run` was run.
+
+To reattach to a detached container, use `docker`
+[*attach*](commandline/attach.md) command.
 
 ### Foreground
 
@@ -137,7 +159,7 @@ The UUID identifiers come from the Docker daemon, and if you do not
 assign a name to the container with `--name` then the daemon will also
 generate a random string name too. The name can become a handy way to
 add meaning to a container since you can use this name when defining
-[*links*](/userguide/dockerlinks) (or any
+[*links*](../userguide/dockerlinks.md) (or any
 other place you need to identify a container). This works for both
 background and foreground Docker containers.
 
@@ -209,12 +231,12 @@ more advanced use case would be changing the host's hostname from a container.
 
 By default, all containers have the IPC namespace enabled.
 
-IPC (POSIX/SysV IPC) namespace provides separation of named shared memory 
+IPC (POSIX/SysV IPC) namespace provides separation of named shared memory
 segments, semaphores and message queues.
 
 Shared memory segments are used to accelerate inter-process communication at
 memory speed, rather than through pipes or through the network stack. Shared
-memory is commonly used by databases and custom-built (typically C/OpenMPI, 
+memory is commonly used by databases and custom-built (typically C/OpenMPI,
 C++/using boost libraries) high performance applications for scientific
 computing and financial services industries. If these types of applications
 are broken into multiple containers, you might need to share the IPC mechanisms
@@ -223,11 +245,12 @@ of the containers.
 ## Network settings
 
     --dns=[]         : Set custom dns servers for the container
-    --net="bridge"   : Set the Network mode for the container
+    --net="bridge"   : Connects a container to a network
                         'bridge': creates a new network stack for the container on the docker bridge
                         'none': no networking for this container
                         'container:<name|id>': reuses another container network stack
                         'host': use the host network stack inside the container
+                        'NETWORK': connects the container to user-created network using `docker network create` command
     --add-host=""    : Add a line to /etc/hosts (host:IP)
     --mac-address="" : Sets the container's Ethernet device's MAC address
 
@@ -237,6 +260,9 @@ with `docker run --net none` which disables all incoming and outgoing
 networking. In cases like this, you would perform I/O through files or
 `STDIN` and `STDOUT` only.
 
+Publishing ports and linking to other containers will not work
+when `--net` is anything other than the default (bridge).
+
 Your container will use the same DNS servers as the host by default, but
 you can override this with `--dns`.
 
@@ -244,12 +270,12 @@ By default, the MAC address is generated using the IP address allocated to the
 container. You can set the container's MAC address explicitly by providing a
 MAC address via the `--mac-address` parameter (format:`12:34:56:78:9a:bc`).
 
-Supported networking modes are:
+Supported networks :
 
 <table>
   <thead>
     <tr>
-      <th class="no-wrap">Mode</th>
+      <th class="no-wrap">Network</th>
       <th>Description</th>
     </tr>
   </thead>
@@ -279,19 +305,25 @@ Supported networking modes are:
         its *name* or *id*.
       </td>
     </tr>
+    <tr>
+      <td class="no-wrap"><strong>NETWORK</strong></td>
+      <td>
+        Connects the container to a user created network (using `docker network create` command)
+      </td>
+    </tr>
   </tbody>
 </table>
 
-#### Mode: none
+#### Network: none
 
-With the networking mode set to `none` a container will not have a
+With the network is `none` a container will not have
 access to any external routes.  The container will still have a
 `loopback` interface enabled in the container but it does not have any
 routes to external traffic.
 
-#### Mode: bridge
+#### Network: bridge
 
-With the networking mode set to `bridge` a container will use docker's
+With the network set to `bridge` a container will use docker's
 default networking setup.  A bridge is setup on the host, commonly named
 `docker0`, and a pair of `veth` interfaces will be created for the
 container.  One side of the `veth` pair will remain on the host attached
@@ -300,14 +332,13 @@ container's namespaces in addition to the `loopback` interface.  An IP
 address will be allocated for containers on the bridge's network and
 traffic will be routed though this bridge to the container.
 
-#### Mode: host
+#### Network: host
 
-With the networking mode set to `host` a container will share the host's
+With the network set to `host` a container will share the host's
 network stack and all interfaces from the host will be available to the
 container.  The container's hostname will match the hostname on the host
-system.  Publishing ports and linking to other containers will not work
-when sharing the host's network stack. Note that `--add-host` `--hostname`
-`--dns` `--dns-search` and `--mac-address` is invalid in `host` netmode.
+system.  Note that `--add-host` `--hostname`  `--dns` `--dns-search`
+`--dns-opt` and `--mac-address` are invalid in `host` netmode.
 
 Compared to the default `bridge` mode, the `host` mode gives *significantly*
 better networking performance since it uses the host's native networking stack
@@ -319,13 +350,14 @@ or a High Performance Web Server.
 > **Note**: `--net="host"` gives the container full access to local system
 > services such as D-bus and is therefore considered insecure.
 
-#### Mode: container
+#### Network: container
 
-With the networking mode set to `container` a container will share the
+With the network set to `container` a container will share the
 network stack of another container.  The other container's name must be
-provided in the format of `--net container:<name|id>`. Note that `--add-host` 
-`--hostname` `--dns` `--dns-search` and `--mac-address` is invalid 
-in `container` netmode.
+provided in the format of `--net container:<name|id>`. Note that `--add-host`
+`--hostname` `--dns` `--dns-search` `--dns-opt` and `--mac-address` are
+invalid in `container` netmode, and `--publish` `--publish-all` `--expose` are
+also invalid in `container` netmode.
 
 Example running a Redis container with Redis binding to `localhost` then
 running the `redis-cli` command and connecting to the Redis server over the
@@ -335,11 +367,26 @@ running the `redis-cli` command and connecting to the Redis server over the
     $ # use the redis container's network stack to access localhost
     $ docker run --rm -it --net container:redis example/redis-cli -h 127.0.0.1
 
+#### Network: User-Created NETWORK
+
+In addition to all the above special networks, user can create a network using
+their favorite network driver or external plugin. The driver used to create the
+network takes care of all the network plumbing requirements for the container
+connected to that network.
+
+Example creating a network using the inbuilt overlay network driver and running 
+a container in the created network
+
+```
+$ docker network create -d overlay multi-host-network
+$ docker run --net=multi-host-network -itd --name=container3 busybox
+```
+
 ### Managing /etc/hosts
 
 Your container will have lines in `/etc/hosts` which define the hostname of the
 container itself as well as `localhost` and a few other common things.  The
-`--add-host` flag can be used to add additional lines to `/etc/hosts`.  
+`--add-host` flag can be used to add additional lines to `/etc/hosts`.
 
     $ docker run -it --add-host db-static:86.75.30.9 ubuntu cat /etc/hosts
     172.17.0.22     09d03f76bf2c
@@ -357,8 +404,8 @@ Using the `--restart` flag on Docker run you can specify a restart policy for
 how a container should or should not be restarted on exit.
 
 When a restart policy is active on a container, it will be shown as either `Up`
-or `Restarting` in [`docker ps`](/reference/commandline/cli/#ps). It can also be
-useful to use [`docker events`](/reference/commandline/cli/#events) to see the
+or `Restarting` in [`docker ps`](commandline/ps.md). It can also be
+useful to use [`docker events`](commandline/events.md) to see the
 restart policy in effect.
 
 Docker supports the following restart policies:
@@ -374,7 +421,7 @@ Docker supports the following restart policies:
     <tr>
       <td><strong>no</strong></td>
       <td>
-        Do not automatically restart the container when it exits. This is the 
+        Do not automatically restart the container when it exits. This is the
         default.
       </td>
     </tr>
@@ -386,7 +433,7 @@ Docker supports the following restart policies:
       </td>
       <td>
         Restart only if the container exits with a non-zero exit status.
-        Optionally, limit the number of restart retries the Docker 
+        Optionally, limit the number of restart retries the Docker
         daemon attempts.
       </td>
     </tr>
@@ -395,7 +442,16 @@ Docker supports the following restart policies:
       <td>
         Always restart the container regardless of the exit status.
         When you specify always, the Docker daemon will try to restart
-        the container indefinitely.
+        the container indefinitely. The container will also always start
+        on daemon startup, regardless of the current state of the container.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>unless-stopped</strong></td>
+      <td>
+        Always restart the container regardless of the exit status, but
+        do not start it on daemon startup if the container has been put
+        to a stopped state before.
       </td>
     </tr>
   </tbody>
@@ -413,8 +469,7 @@ for at least 10 seconds), the delay is reset to its default value of 100 ms.
 You can specify the maximum amount of times Docker will try to restart the
 container when using the **on-failure** policy.  The default is that Docker
 will try forever to restart the container. The number of (attempted) restarts
-for a container can be obtained via [`docker inspect`](
-/reference/commandline/cli/#inspect). For example, to get the number of restarts
+for a container can be obtained via [`docker inspect`](commandline/inspect.md). For example, to get the number of restarts
 for container "my-container";
 
     $ docker inspect -f "{{ .RestartCount }}" my-container
@@ -425,11 +480,11 @@ Or, to get the last time the container was (re)started;
     $ docker inspect -f "{{ .State.StartedAt }}" my-container
     # 2015-03-04T23:47:07.691840179Z
 
-You cannot set any restart policy in combination with 
+You cannot set any restart policy in combination with
 ["clean up (--rm)"](#clean-up-rm). Setting both `--restart` and `--rm`
 results in an error.
 
-###Examples
+### Examples
 
     $ docker run --restart=always redis
 
@@ -438,7 +493,7 @@ so that if the container exits, Docker will restart it.
 
     $ docker run --restart=on-failure:10 redis
 
-This will run the `redis` container with a restart policy of **on-failure** 
+This will run the `redis` container with a restart policy of **on-failure**
 and a maximum restart count of 10.  If the `redis` container exits with a
 non-zero exit status more than 10 times in a row Docker will abort trying to
 restart the container. Providing a maximum restart limit is only valid for the
@@ -456,13 +511,17 @@ the container exits**, you can add the `--rm` flag:
 
     --rm=false: Automatically remove the container when it exits (incompatible with -d)
 
+> **Note**: When you set the `--rm` flag, Docker also removes the volumes 
+associated with the container when the container is removed. This is similar 
+to running `docker rm -v my-container`.
+
 ## Security configuration
     --security-opt="label:user:USER"   : Set the label user for the container
     --security-opt="label:role:ROLE"   : Set the label role for the container
     --security-opt="label:type:TYPE"   : Set the label type for the container
     --security-opt="label:level:LEVEL" : Set the label level for the container
     --security-opt="label:disable"     : Turn off label confinement for the container
-    --security-opt="apparmor:PROFILE"  : Set the apparmor profile to be applied 
+    --security-opt="apparmor:PROFILE"  : Set the apparmor profile to be applied
                                          to the container
 
 You can override the default labeling scheme for each container by specifying
@@ -488,9 +547,7 @@ command:
 
     $ docker run --security-opt label:type:svirt_apache_t -i -t centos bash
 
-Note:
-
-You would have to write policy defining a `svirt_apache_t` type.
+> **Note**: You would have to write policy defining a `svirt_apache_t` type.
 
 ## Specifying custom cgroups
 
@@ -504,19 +561,24 @@ parent group.
 The operator can also adjust the performance parameters of the
 container:
 
-    -m, --memory="": Memory limit (format: <number><optional unit>, where unit = b, k, m or g)
-    -memory-swap="": Total memory limit (memory + swap, format: <number><optional unit>, where unit = b, k, m or g)
-    -c, --cpu-shares=0: CPU shares (relative weight)
-    --cpu-period=0: Limit the CPU CFS (Completely Fair Scheduler) period
-    --cpuset-cpus="": CPUs in which to allow execution (0-3, 0,1)
-    --cpuset-mems="": Memory nodes (MEMs) in which to allow execution (0-3, 0,1). Only effective on NUMA systems.
-    --cpu-quota=0: Limit the CPU CFS (Completely Fair Scheduler) quota
-    --blkio-weight=0: Block IO weight (relative weight) accepts a weight value between 10 and 1000.
-    --oom-kill-disable=true|false: Whether to disable OOM Killer for the container or not.
+| Option                     |  Description                                                                                |
+|----------------------------|---------------------------------------------------------------------------------------------|
+| `-m`, `--memory="" `       | Memory limit (format: `<number>[<unit>]`, where unit = b, k, m or g)                        |
+| `--memory-swap=""`         | Total memory limit (memory + swap, format: `<number>[<unit>]`, where unit = b, k, m or g)   |
+| `--memory-reservation=""`  | Memory soft limit (format: `<number>[<unit>]`, where unit = b, k, m or g)                   |
+| `--kernel-memory=""`       | Kernel memory limit (format: `<number>[<unit>]`, where unit = b, k, m or g)                 |
+| `-c`, `--cpu-shares=0`     | CPU shares (relative weight)                                                                |
+| `--cpu-period=0`           | Limit the CPU CFS (Completely Fair Scheduler) period                                        |
+| `--cpuset-cpus="" `        | CPUs in which to allow execution (0-3, 0,1)                                                 |
+| `--cpuset-mems=""`         | Memory nodes (MEMs) in which to allow execution (0-3, 0,1). Only effective on NUMA systems. |
+| `--cpu-quota=0`            | Limit the CPU CFS (Completely Fair Scheduler) quota                                         |
+| `--blkio-weight=0`         | Block IO weight (relative weight) accepts a weight value between 10 and 1000.               |
+| `--oom-kill-disable=false` | Whether to disable OOM Killer for the container or not.                                     |
+| `--memory-swappiness=""  ` | Tune a container's memory swappiness behavior. Accepts an integer between 0 and 100.        |
 
-### Memory constraints
+### User memory constraints
 
-We have four ways to set memory usage:
+We have four ways to set user memory usage:
 
 <table>
   <thead>
@@ -589,14 +651,49 @@ would be 2*300M, so processes can use 300M swap memory as well.
 We set both memory and swap memory, so the processes in the container can use
 300M memory and 700M swap memory.
 
-By default, Docker kills processes in a container if an out-of-memory (OOM)
+Memory reservation is a kind of memory soft limit that allows for greater
+sharing of memory. Under normal circumstances, containers can use as much of
+the memory as needed and are constrained only by the hard limits set with the
+`-m`/`--memory` option. When memory reservation is set, Docker detects memory
+contention or low memory and forces containers to restrict their consumption to
+a reservation limit.
+
+Always set the memory reservation value below the hard limit, otherwise the hard
+limit takes precedence. A reservation of 0 is the same as setting no
+reservation. By default (without reservation set), memory reservation is the
+same as the hard memory limit.
+
+Memory reservation is a soft-limit feature and does not guarantee the limit
+won't be exceeded. Instead, the feature attempts to ensure that, when memory is
+heavily contended for, memory is allocated based on the reservation hints/setup. 
+
+The following example limits the memory (`-m`) to 500M and sets the memory
+reservation to 200M.
+
+```bash
+$ docker run -ti -m 500M --memory-reservation 200M ubuntu:14.04 /bin/bash
+```
+
+Under this configuration, when the container consumes memory more than 200M and
+less than 500M, the next system memory reclaim attempts to shrink container
+memory below 200M.
+
+The following example set memory reservation to 1G without a hard memory limit.
+
+```bash
+$ docker run -ti --memory-reservation 1G ubuntu:14.04 /bin/bash
+```
+
+The container can use as much memory as it needs. The memory reservation setting
+ensures the container doesn't consume too much memory for long time, because
+every memory reclaim shrinks the container's consumption to the reservation.
+
+By default, kernel kills processes in a container if an out-of-memory (OOM)
 error occurs. To change this behaviour, use the `--oom-kill-disable` option.
 Only disable the OOM killer on containers where you have also set the
 `-m/--memory` option. If the `-m` flag is not set, this can result in the host
 running out of memory and require killing the host's system processes to free
 memory.
-
-Examples:
 
 The following example limits the memory to 100M and disables the OOM killer for
 this container:
@@ -610,6 +707,91 @@ The following example, illustrates a dangerous way to use the flag:
 The container has unlimited memory which can cause the host to run out memory
 and require killing system processes to free memory.
 
+### Kernel memory constraints
+
+Kernel memory is fundamentally different than user memory as kernel memory can't
+be swapped out. The inability to swap makes it possible for the container to
+block system services by consuming too much kernel memory. Kernel memory includes：
+
+ - stack pages
+ - slab pages
+ - sockets memory pressure
+ - tcp memory pressure
+
+You can setup kernel memory limit to constrain these kinds of memory. For example,
+every process consumes some stack pages. By limiting kernel memory, you can
+prevent new processes from being created when the kernel memory usage is too high.
+
+Kernel memory is never completely independent of user memory. Instead, you limit
+kernel memory in the context of the user memory limit. Assume "U" is the user memory
+limit and "K" the kernel limit. There are three possible ways to set limits:
+
+<table>
+  <thead>
+    <tr>
+      <th>Option</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="no-wrap"><strong>U != 0, K = inf</strong> (default)</td>
+      <td>
+        This is the standard memory limitation mechanism already present before using
+        kernel memory. Kernel memory is completely ignored.
+      </td>
+    </tr>
+    <tr>
+      <td class="no-wrap"><strong>U != 0, K &lt; U</strong></td>
+      <td>
+        Kernel memory is a subset of the user memory. This setup is useful in
+        deployments where the total amount of memory per-cgroup is overcommitted.
+        Overcommitting kernel memory limits is definitely not recommended, since the
+        box can still run out of non-reclaimable memory.
+        In this case, the you can configure K so that the sum of all groups is
+        never greater than the total memory. Then, freely set U at the expense of
+        the system's service quality.
+      </td>
+    </tr>
+    <tr>
+      <td class="no-wrap"><strong>U != 0, K &gt; U</strong></td>
+      <td>
+        Since kernel memory charges are also fed to the user counter and reclamation
+        is triggered for the container for both kinds of memory. This configuration
+        gives the admin a unified view of memory. It is also useful for people
+        who just want to track kernel memory usage.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Examples:
+
+    $ docker run -ti -m 500M --kernel-memory 50M ubuntu:14.04 /bin/bash
+
+We set memory and kernel memory, so the processes in the container can use
+500M memory in total, in this 500M memory, it can be 50M kernel memory tops.
+
+    $ docker run -ti --kernel-memory 50M ubuntu:14.04 /bin/bash
+
+We set kernel memory without **-m**, so the processes in the container can
+use as much memory as they want, but they can only use 50M kernel memory.
+
+### Swappiness constraint
+
+By default, a container's kernel can swap out a percentage of anonymous pages.
+To set this percentage for a container, specify a `--memory-swappiness` value
+between 0 and 100. A value of 0 turns off anonymous page swapping. A value of
+100 sets all anonymous pages as swappable. By default, if you are not using
+`--memory-swappiness`, memory swappiness value will be inherited from the parent.
+
+For example, you can set:
+
+    $ docker run -ti --memory-swappiness=0 ubuntu:14.04 /bin/bash
+
+Setting the `--memory-swappiness` option is helpful when you want to retain the
+container's working set and to avoid swapping performance penalties.
+
 ### CPU share constraint
 
 By default, all containers get the same proportion of CPU cycles. This proportion
@@ -617,7 +799,8 @@ can be modified by changing the container's CPU share weighting relative
 to the weighting of all other running containers.
 
 To modify the proportion from the default of 1024, use the `-c` or `--cpu-shares`
-flag to set the weighting to 2 or higher.
+flag to set the weighting to 2 or higher. If 0 is set, the system will ignore the
+value and use the default of 1024.
 
 The proportion will only apply when CPU-intensive processes are running.
 When tasks in one container are idle, other containers can use the
@@ -648,7 +831,7 @@ division of CPU shares:
 ### CPU period constraint
 
 The default CPU CFS (Completely Fair Scheduler) period is 100ms. We can use
-`--cpu-period` to set the period of CPUs to limit the container's CPU usage. 
+`--cpu-period` to set the period of CPUs to limit the container's CPU usage.
 And usually `--cpu-period` should work with `--cpu-quota`.
 
 Examples:
@@ -721,6 +904,16 @@ weights of the two containers.
 > **Note:** The blkio weight setting is only available for direct IO. Buffered IO
 > is not currently supported.
 
+## Additional groups
+    --group-add: Add Linux capabilities
+
+By default, the docker container process runs with the supplementary groups looked
+up for the specified user. If one wants to add more to that list of groups, then
+one can use this flag:
+
+    $ docker run -ti --rm --group-add audio  --group-add dbus --group-add 777 busybox id
+    uid=0(root) gid=0(root) groups=10(wheel),29(audio),81(dbus),777
+
 ## Runtime privilege, Linux capabilities, and LXC configuration
 
     --cap-add: Add Linux capabilities
@@ -772,7 +965,7 @@ capabilities using `--cap-add` and `--cap-drop`. By default, Docker has a defaul
 list of capabilities that are kept. The following table lists the Linux capability options which can be added or dropped.
 
 | Capability Key | Capability Description |
-| :----------------- | :---------------| :-------------------- |
+| -------------- | ---------------------- |
 | SETPCAP | Modify process capabilities. |
 | SYS_MODULE| Load and unload kernel modules. |
 | SYS_RAWIO | Perform I/O port operations (iopl(2) and ioperm(2)). |
@@ -813,7 +1006,7 @@ list of capabilities that are kept. The following table lists the Linux capabili
 
 Further reference information is available on the [capabilities(7) - Linux man page](http://linux.die.net/man/7/capabilities)
 
-Both flags support the value `all`, so if the
+Both flags support the value `ALL`, so if the
 operator wants to have all capabilities but `MKNOD` they could use:
 
     $ docker run --cap-add=ALL --cap-drop=MKNOD ...
@@ -850,7 +1043,7 @@ To mount a FUSE based filesystem, you need to combine both `--cap-add` and
 
 
 If the Docker daemon was started using the `lxc` exec-driver
-(`docker -d --exec-driver=lxc`) then the operator can also specify LXC options
+(`docker daemon --exec-driver=lxc`) then the operator can also specify LXC options
 using one or more `--lxc-conf` parameters. These can be new parameters or
 override existing parameters from the [lxc-template.go](
 https://github.com/docker/docker/blob/master/daemon/execdriver/lxc/lxc_template.go).
@@ -867,47 +1060,27 @@ familiar with using LXC directly.
 
 ## Logging drivers (--log-driver)
 
-You can specify a different logging driver for the container than for the daemon.
+The container can have a different logging driver than the Docker daemon. Use
+the `--log-driver=VALUE` with the `docker run` command to configure the
+container's logging driver. The following options are supported:
 
-#### Logging driver: none
+| `none`      | Disables any logging for the container. `docker logs` won't be available with this driver.                                    |
+|-------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `json-file` | Default logging driver for Docker. Writes JSON messages to file.  No logging options are supported for this driver.           |
+| `syslog`    | Syslog logging driver for Docker. Writes log messages to syslog.                                                              |
+| `journald`  | Journald logging driver for Docker. Writes log messages to `journald`.                                                        |
+| `gelf`      | Graylog Extended Log Format (GELF) logging driver for Docker. Writes log messages to a GELF endpoint likeGraylog or Logstash. |
+| `fluentd`   | Fluentd logging driver for Docker. Writes log messages to `fluentd` (forward input).                                          |
+| `awslogs`   | Amazon CloudWatch Logs logging driver for Docker. Writes log messages to Amazon CloudWatch Logs                               |
 
-Disables any logging for the container. `docker logs` won't be available with
-this driver.
+The `docker logs` command is available only for the `json-file` and `journald`
+logging drivers.  For detailed information on working with logging drivers, see
+[Configure a logging driver](logging/overview.md).
 
-#### Logging driver: json-file
-
-Default logging driver for Docker. Writes JSON messages to file. `docker logs`
-command is available only for this logging driver
-
-The following logging options are supported for this logging driver: [none]
-
-#### Logging driver: syslog
-
-Syslog logging driver for Docker. Writes log messages to syslog. `docker logs`
-command is not available for this logging driver
-
-The following logging options are supported for this logging driver:
-
-    --log-opt address=[tcp|udp]://host:port
-    --log-opt address=unix://path
-
-`address` specifies the remote syslog server address where the driver connects to.
-If not specified it defaults to the local unix socket of the running system.
-If transport is either `tcp` or `udp` and `port` is not specified it defaults to `514`
-The following example shows how to have the `syslog` driver connect to a `syslog`
-remote server at `192.168.0.42` on port `123`
-
-    $ docker run --log-driver=syslog --log-opt address=tcp://192.168.0.42:123
-
-#### Logging driver: journald
-
-Journald logging driver for Docker. Writes log messages to journald; the container id will be stored in the journal's `CONTAINER_ID` field. `docker logs` command is not available for this logging driver.  For detailed information on working with this logging driver, see [the journald logging driver](reference/logging/journald) reference documentation.
-
-The following logging options are supported for this logging driver: [none]
 
 ## Overriding Dockerfile image defaults
 
-When a developer builds an image from a [*Dockerfile*](/reference/builder)
+When a developer builds an image from a [*Dockerfile*](builder.md)
 or when she commits it, the developer can set a number of default parameters
 that take effect when the image starts up as a container.
 
@@ -925,7 +1098,7 @@ Dockerfile instruction and how the operator can override that setting.
  - [USER](#user)
  - [WORKDIR](#workdir)
 
-## CMD (default command or options)
+### CMD (default command or options)
 
 Recall the optional `COMMAND` in the Docker
 commandline:
@@ -941,7 +1114,7 @@ image), you can override that `CMD` instruction just by specifying a new
 If the image also specifies an `ENTRYPOINT` then the `CMD` or `COMMAND`
 get appended as arguments to the `ENTRYPOINT`.
 
-## ENTRYPOINT (default command to execute at runtime)
+### ENTRYPOINT (default command to execute at runtime)
 
     --entrypoint="": Overwrite the default entrypoint set by the image
 
@@ -964,49 +1137,63 @@ or two examples of how to pass more parameters to that ENTRYPOINT:
     $ docker run -i -t --entrypoint /bin/bash example/redis -c ls -l
     $ docker run -i -t --entrypoint /usr/bin/redis-cli example/redis --help
 
-## EXPOSE (incoming ports)
+### EXPOSE (incoming ports)
 
-The Dockerfile doesn't give much control over networking, only providing
-the `EXPOSE` instruction to give a hint to the operator about what
-incoming ports might provide services. The following options work with
-or override the Dockerfile's exposed defaults:
+The following `run` command options work with container networking:
 
-    --expose=[]: Expose a port or a range of ports from the container
-                without publishing it to your host
+    --expose=[]: Expose a port or a range of ports inside the container.
+                 These are additional to those exposed by the `EXPOSE` instruction
     -P=false   : Publish all exposed ports to the host interfaces
-    -p=[]      : Publish a container᾿s port or a range of ports to the host 
+    -p=[]      : Publish a container᾿s port or a range of ports to the host
                    format: ip:hostPort:containerPort | ip::containerPort | hostPort:containerPort | containerPort
-                   Both hostPort and containerPort can be specified as a range of ports. 
-                   When specifying ranges for both, the number of container ports in the range must match the number of host ports in the range. (e.g., `-p 1234-1236:1234-1236/tcp`)
+                   Both hostPort and containerPort can be specified as a
+                   range of ports. When specifying ranges for both, the
+                   number of container ports in the range must match the
+                   number of host ports in the range, for example:
+                       -p 1234-1236:1234-1236/tcp
+
+                   When specifying a range for hostPort only, the
+                   containerPort must not be a range.  In this case the
+                   container port is published somewhere within the
+                   specified hostPort range. (e.g., `-p 1234-1236:1234/tcp`)
+
                    (use 'docker port' to see the actual mapping)
+
     --link=""  : Add link to another container (<name or id>:alias or <name or id>)
 
-As mentioned previously, `EXPOSE` (and `--expose`) makes ports available
-**in** a container for incoming connections. The port number on the
-inside of the container (where the service listens) does not need to be
-the same number as the port exposed on the outside of the container
-(where clients connect), so inside the container you might have an HTTP
-service listening on port 80 (and so you `EXPOSE 80` in the Dockerfile),
-but outside the container the port might be 42800.
+With the exception of the `EXPOSE` directive, an image developer hasn't
+got much control over networking. The `EXPOSE` instruction defines the
+initial incoming ports that provide services. These ports are available
+to processes inside the container. An operator can use the `--expose`
+option to add to the exposed ports.
 
-To help a new client container reach the server container's internal
-port operator `--expose`'d by the operator or `EXPOSE`'d by the
-developer, the operator has three choices: start the server container
-with `-P` or `-p,` or start the client container with `--link`.
+To expose a container's internal port, an operator can start the
+container with the `-P` or `-p` flag. The exposed port is accessible on
+the host and the ports are available to any client that can reach the
+host.
 
-If the operator uses `-P` or `-p` then Docker will make the exposed port
-accessible on the host and the ports will be available to any client that can
-reach the host. When using `-P`, Docker will bind the exposed port to a random
-port on the host within an *ephemeral port range* defined by
-`/proc/sys/net/ipv4/ip_local_port_range`. To find the mapping between the host
-ports and the exposed ports, use `docker port`.
+The `-P` option publishes all the ports to the host interfaces. Docker
+binds each exposed port to a random port on the host. The range of
+ports are within an *ephemeral port range* defined by
+`/proc/sys/net/ipv4/ip_local_port_range`. Use the `-p` flag to
+explicitly map a single port or range of ports.
 
-If the operator uses `--link` when starting the new client container,
+The port number inside the container (where the service listens) does
+not need to match the port number exposed on the outside of the
+container (where clients connect). For example, inside the container an
+HTTP service is listening on port 80 (and so the image developer
+specifies `EXPOSE 80` in the Dockerfile). At runtime, the port might be
+bound to 42800 on the host. To find the mapping between the host ports
+and the exposed ports, use `docker port`.
+
+If the operator uses `--link` when starting a new client container,
 then the client container can access the exposed port via a private
-networking interface.  Docker will set some environment variables in the
-client container to help indicate which interface and port to use.
+networking interface. Docker will set some environment variables in the
+client container to help indicate which interface and port to use. For
+more information on linking, see [the guide on linking container
+together](../userguide/dockerlinks.md)
 
-## ENV (environment variables)
+### ENV (environment variables)
 
 When a new container is created, Docker will set the following environment
 variables automatically:
@@ -1024,29 +1211,29 @@ variables automatically:
  </tr>
  <tr>
   <td><code>HOSTNAME</code></td>
-  <td> 
+  <td>
     The hostname associated with the container
   </td>
  </tr>
  <tr>
   <td><code>PATH</code></td>
-  <td> 
+  <td>
     Includes popular directories, such as :<br>
     <code>/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin</code>
   </td>
  <tr>
   <td><code>TERM</code></td>
-  <td><code>xterm</code> if the container is allocated a psuedo-TTY</td>
+  <td><code>xterm</code> if the container is allocated a pseudo-TTY</td>
  </tr>
 </table>
 
 The container may also include environment variables defined
 as a result of the container being linked with another container. See
-the [*Container Links*](/userguide/dockerlinks/#container-linking)
+the [*Container Links*](../userguide/dockerlinks.md#connect-with-the-linking-system)
 section for more details.
 
-Additionally, the operator can **set any environment variable** in the 
-container by using one or more `-e` flags, even overriding those mentioned 
+Additionally, the operator can **set any environment variable** in the
+container by using one or more `-e` flags, even overriding those mentioned
 above, or already defined by the developer with a Dockerfile `ENV`:
 
     $ docker run -e "deep=purple" --rm ubuntu /bin/bash -c export
@@ -1119,33 +1306,53 @@ container's `/etc/hosts` entry will be automatically updated.
 > restarted. We recommend using the host entries in `/etc/hosts` to resolve the
 > IP address of linked containers.
 
-## VOLUME (shared filesystems)
+### VOLUME (shared filesystems)
 
-    -v=[]: Create a bind mount with: [host-dir:]container-dir[:rw|ro].
-           If 'host-dir' is missing, then docker creates a new volume.
+    -v=[]: Create a bind mount with: [host-dir:]container-dir[:<options>], where
+    options are comma delimited and selected from [rw|ro] and [z|Z]. 
+           If 'host-dir' is missing, then docker creates a new volume. 
 		   If neither 'rw' or 'ro' is specified then the volume is mounted
 		   in read-write mode.
     --volumes-from="": Mount all volumes from the given container(s)
 
+> **Note**:
+> The auto-creation of the host path has been [*deprecated*](../misc/deprecated.md#auto-creating-missing-host-paths-for-bind-mounts).
+
 The volumes commands are complex enough to have their own documentation
-in section [*Managing data in 
-containers*](/userguide/dockervolumes). A developer can define
+in section [*Managing data in
+containers*](../userguide/dockervolumes.md). A developer can define
 one or more `VOLUME`'s associated with an image, but only the operator
 can give access from one container to another (or from a container to a
 volume mounted on the host).
 
-## USER
+The `container-dir` must always be an absolute path such as `/src/docs`. 
+The `host-dir` can either be an absolute path or a `name` value. If you 
+supply an absolute path for the `host-dir`, Docker bind-mounts to the path 
+you specify. If you supply a `name`, Docker creates a named volume by that `name`.
 
-The default user within a container is `root` (id = 0), but if the
-developer created additional users, those are accessible too. The
-developer can set a default user to run the first process with the
-Dockerfile `USER` instruction, but the operator can override it:
+A `name` value must start with start with an alphanumeric character, 
+followed by `a-z0-9`, `_` (underscore), `.` (period) or `-` (hyphen). 
+An absolute path starts with a `/` (forward slash).
+
+For example, you can specify either `/foo` or `foo` for a `host-dir` value. 
+If you supply the `/foo` value, Docker creates a bind-mount. If you supply 
+the `foo` specification, Docker creates a named volume.
+
+### USER
+
+`root` (id = 0) is the default user within a container. The image developer can
+create additional users. Those users are accessible by name.  When passing a numeric
+ID, the user does not have to exist in the container.
+
+The developer can set a default user to run the first process with the
+Dockerfile `USER` instruction. When starting a container, the operator can override
+the `USER` instruction by passing the `-u` option.
 
     -u="": Username or UID
 
-> **Note:** if you pass numeric uid, it must be in range 0-2147483647.
+> **Note:** if you pass a numeric uid, it must be in the range of 0-2147483647.
 
-## WORKDIR
+### WORKDIR
 
 The default working directory for running binaries within a container is the
 root directory (`/`), but the developer can set a different default with the

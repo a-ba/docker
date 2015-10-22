@@ -18,11 +18,11 @@ information and real-time information.
 
 Docker containers will report the following events:
 
-    create, destroy, die, export, kill, pause, restart, start, stop, unpause
+    attach, commit, copy, create, destroy, die, exec_create, exec_start, export, kill, oom, pause, rename, resize, restart, start, stop, top, unpause
 
 and Docker images will report:
 
-    untag, delete
+    delete, import, pull, push, tag, untag
 
 # OPTIONS
 **--help**
@@ -36,6 +36,10 @@ and Docker images will report:
 
 **--until**=""
    Stream events until this timestamp
+
+You can specify `--since` and `--until` parameters as an RFC 3339 date,
+a UNIX timestamp, or a Go duration string (e.g. `1m30s`, `3h`). Docker computes
+the date relative to the client machine’s time.
 
 # EXAMPLES
 
@@ -63,6 +67,14 @@ Again the output container IDs have been shortened for the purposes of this docu
     2015-01-28T20:25:45.000000000-08:00 c21f6c22ba27: (from whenry/testimage:latest) die
     2015-01-28T20:25:46.000000000-08:00 c21f6c22ba27: (from whenry/testimage:latest) stop
 
+The following example outputs all events that were generated in the last 3 minutes,
+relative to the current time on the client machine:
+
+    # docker events --since '3m'
+    2015-05-12T11:51:30.999999999Z07:00 4386fb97867d: (from ubuntu-1:14.04) die
+    2015-05-12T15:52:12.999999999Z07:00 4 4386fb97867d: (from ubuntu-1:14.04) stop
+    2015-05-12T15:53:45.999999999Z07:00  7805c1d35632: (from redis:2.8) die
+    2015-05-12T15:54:03.999999999Z07:00  7805c1d35632: (from redis:2.8) stop
 
 If you do not provide the --since option, the command returns only new and/or
 live events.

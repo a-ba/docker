@@ -2,7 +2,7 @@
 +++
 title = "Runtime metrics"
 description = "Measure the behavior of running containers"
-keywords = ["docker, metrics, CPU, memory, disk, IO, run,  runtime"]
+keywords = ["docker, metrics, CPU, memory, disk, IO, run,  runtime, stats"]
 [menu.main]
 parent = "smn_administrate"
 weight = 4
@@ -11,14 +11,32 @@ weight = 4
 
 # Runtime metrics
 
+
+## Docker stats
+
+You can use the `docker stats` command to live stream a container's
+runtime metrics. The command supports CPU, memory usage, memory limit,
+and network IO metrics.
+
+The following is a sample output from the `docker stats` command
+
+    $ docker stats redis1 redis2
+    CONTAINER           CPU %               MEM USAGE / LIMIT     MEM %               NET I/O             BLOCK I/O
+    redis1              0.07%               796 KB / 64 MB        1.21%               788 B / 648 B       3.568 MB / 512 KB
+    redis2              0.07%               2.746 MB / 64 MB      4.29%               1.266 KB / 648 B    12.4 MB / 0 B
+
+
+The [docker stats](../reference/commandline/stats.md) reference page has
+more details about the `docker stats` command.
+
+## Control groups
+
 Linux Containers rely on [control groups](
 https://www.kernel.org/doc/Documentation/cgroups/cgroups.txt)
 which not only track groups of processes, but also expose metrics about
 CPU, memory, and block I/O usage. You can access those metrics and
 obtain network usage metrics as well. This is relevant for "pure" LXC
 containers, as well as for Docker containers.
-
-## Control groups
 
 Control groups are exposed through a pseudo-filesystem. In recent
 distros, you should find this filesystem under `/sys/fs/cgroup`. Under
@@ -60,7 +78,7 @@ in `docker ps`, its long ID might be something like
 look it up with `docker inspect` or `docker ps --no-trunc`.
 
 Putting everything together to look at the memory metrics for a Docker
-container, take a look at `/sys/fs/cgroup/memory/lxc/<longid>/`.
+container, take a look at `/sys/fs/cgroup/memory/docker/<longid>/`.
 
 ## Metrics from cgroups: memory, CPU, block I/O
 
@@ -317,7 +335,7 @@ layer; you will also have to add traffic going through the userland
 proxy.
 
 Then, you will need to check those counters on a regular basis. If you
-happen to use `collectd`, there is a [nice plugin](https://collectd.org/wiki/index.php/Plugin:IPTables)
+happen to use `collectd`, there is a [nice plugin](https://collectd.org/wiki/index.php/Table_of_Plugins)
 to automate iptables counters collection.
 
 ### Interface-level counters
@@ -378,7 +396,7 @@ control group (i.e., in the container). Pick any one of them.
 Putting everything together, if the "short ID" of a container is held in
 the environment variable `$CID`, then you can do this:
 
-    $ TASKS=/sys/fs/cgroup/devices/$CID*/tasks
+    $ TASKS=/sys/fs/cgroup/devices/docker/$CID*/tasks
     $ PID=$(head -n 1 $TASKS)
     $ mkdir -p /var/run/netns
     $ ln -sf /proc/$PID/ns/net /var/run/netns/$CID

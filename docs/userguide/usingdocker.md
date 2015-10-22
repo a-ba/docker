@@ -10,12 +10,12 @@ parent="smn_containers"
 
 # Working with containers
 
-In the [last section of the Docker User Guide](/userguide/dockerizing)
-we launched our first containers. We launched two containers using the
-`docker run` command.
+In the [last section of the Docker User Guide](dockerizing.md)
+we launched our first containers. We launched containers using the
+`docker run` command:
 
-* Containers we ran interactively in the foreground.
-* One container we ran daemonized in the background.
+* Interactive container runs in the foreground.
+* Daemonized container runs in the background.
 
 In the process we learned about several Docker commands:
 
@@ -43,17 +43,22 @@ version information on the currently installed Docker client and daemon.
 This command will not only provide you the version of Docker client and
 daemon you are using, but also the version of Go (the programming
 language powering Docker).
+  
+    Client:
+      Version:      1.8.1
+      API version:  1.20
+      Go version:   go1.4.2
+      Git commit:   d12ea79
+      Built:        Thu Aug 13 02:35:49 UTC 2015
+      OS/Arch:      linux/amd64
 
-    Client version: 0.8.0
-    Go version (client): go1.2
-
-    Git commit (client): cc3a8c8
-    Server version: 0.8.0
-
-    Git commit (server): cc3a8c8
-    Go version (server): go1.2
-
-    Last stable version: 0.8.0
+    Server:
+      Version:      1.8.1
+      API version:  1.20
+      Go version:   go1.4.2
+      Git commit:   d12ea79
+      Built:        Thu Aug 13 02:35:49 UTC 2015
+      OS/Arch:      linux/amd64
 
 ## Get Docker command help
 
@@ -77,15 +82,14 @@ To see usage for a specific command, specify the command with the `--help` flag:
 
 > **Note:** 
 > For further details and examples of each command, see the
-> [command reference](/reference/commandline/cli/) in this guide.
+> [command reference](../reference/commandline/cli.md) in this guide.
 
 ## Running a web application in Docker
 
 So now we've learnt a bit more about the `docker` client let's move onto
 the important stuff: running more containers. So far none of the
-containers we've run did anything particularly useful though. So let's
-build on that experience by running an example web application in
-Docker.
+containers we've run did anything particularly useful, so let's
+change that by running an example web application in Docker.
 
 For our web application we're going to run a Python Flask application.
 Let's start with a `docker run` command.
@@ -106,8 +110,8 @@ Lastly, we've specified a command for our container to run: `python app.py`. Thi
 
 > **Note:** 
 > You can see more detail on the `docker run` command in the [command
-> reference](/reference/commandline/cli/#run) and the [Docker Run
-> Reference](/reference/run/).
+> reference](../reference/commandline/run.md) and the [Docker Run
+> Reference](../reference/run.md).
 
 ## Viewing our web application container
 
@@ -126,7 +130,7 @@ command. This tells the `docker ps` command to return the details of the
 > containers. If you want to see stopped containers too use the `-a` flag.
 
 We can see the same details we saw [when we first Dockerized a
-container](/userguide/dockerizing) with one important addition in the `PORTS`
+container](dockerizing.md) with one important addition in the `PORTS`
 column.
 
     PORTS
@@ -137,7 +141,7 @@ ports exposed in our image to our host.
 
 > **Note:** 
 > We'll learn more about how to expose ports in Docker images when
-> [we learn how to build images](/userguide/dockerimages).
+> [we learn how to build images](dockerimages.md).
 
 In this case Docker has exposed port 5000 (the default Python Flask
 port) on port 49155.
@@ -162,20 +166,19 @@ Docker host.
 So let's now browse to port 49155 in a web browser to
 see the application.
 
-![Viewing the web application](/userguide/webapp1.png).
+![Viewing the web application](webapp1.png).
 
 Our Python application is live!
 
 > **Note:**
-> If you have used the `boot2docker` virtual machine on OS X, Windows or Linux,
+> If you have been using a virtual machine on OS X, Windows or Linux,
 > you'll need to get the IP of the virtual host instead of using localhost.
-> You can do this by running the following outside of the `boot2docker` shell
-> (i.e., from your comment line or terminal application).
+> You can do this by running the `docker-machine ip your_vm_name` from your  command line or terminal application, for example:
 > 
->     $ boot2docker ip
->     The VM's Host only interface IP address is: 192.168.59.103
+>     $ docker-machine ip my-docker-vm
+>     192.168.99.100
 > 
-> In this case you'd browse to http://192.168.59.103:49155 for the above example.
+> In this case you'd browse to `http://192.168.99.100:49155` for the above example.
 
 ## A network port shortcut
 
@@ -220,8 +223,8 @@ the container.
 ## Inspecting our web application container
 
 Lastly, we can take a low-level dive into our Docker container using the
-`docker inspect` command. It returns a JSON hash of useful configuration
-and status information about Docker containers.
+`docker inspect` command. It returns a JSON document containing useful
+configuration and status information for the specified container.
 
     $ docker inspect nostalgic_morse
 
@@ -298,13 +301,13 @@ this again by stopping the container first.
 And now our container is stopped and deleted.
 
 > **Note:**
-> Always remember that deleting a container is final!
+> Always remember that removing a container is final!
 
 # Next steps
 
 Until now we've only used images that we've downloaded from
-[Docker Hub](https://hub.docker.com) now let's get introduced to
+[Docker Hub](https://hub.docker.com). Next, let's get introduced to
 building and sharing our own images.
 
-Go to [Working with Docker Images](/userguide/dockerimages).
+Go to [Working with Docker Images](dockerimages.md).
 

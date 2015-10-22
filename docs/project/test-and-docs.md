@@ -56,7 +56,7 @@ change an existing one.
 
 Before submitting any code change, you should run the entire Docker test suite.
 The `Makefile` contains a target for the entire test suite. The target's name
-is simply `test`. The make file contains several targets for testing:
+is simply `test`. The `Makefile` contains several targets for testing:
 
 <style type="text/css">
 .monospaced {font-family: Monaco, Consolas, "Lucida Console", monospace !important;}
@@ -81,10 +81,6 @@ is simply `test`. The make file contains several targets for testing:
   <tr>
     <td class="monospaced">test-docker-py</td>
     <td>Run the tests for Docker API client.</td>
-  </tr>
-  <tr>
-    <td class="monospaced">docs-test</td>
-    <td>Runs the documentation test build.</td>
   </tr>
 </table>
 
@@ -111,19 +107,46 @@ Run the entire test suite on your current repository:
     * cross-compiles all the binaries for the various operating systems
     * runs all the tests in the system
 
-    It can take several minutes to run all the tests. When they complete
+    It can take approximate one hour to run all the tests. The time depends
+    on your host performance. The default timeout is 60 minutes, which is
+    defined in hack/make.sh(${TIMEOUT:=60m}). You can modify the timeout
+    value on the basis of your host performance. When they complete
     successfully, you see the output concludes with something like this:
 
 
-        [PASSED]: top - sleep process should be listed in privileged mode
-        [PASSED]: version - verify that it works and that the output is properly formatted
+        PASS: docker_cli_pull_test.go:133: DockerHubPullSuite.TestPullClientDisconnect	1.127s
+        PASS: docker_cli_pull_test.go:16: DockerHubPullSuite.TestPullFromCentralRegistry	1.049s
+        PASS: docker_cli_pull_test.go:65: DockerHubPullSuite.TestPullFromCentralRegistryImplicitRefParts	9.795s
+        PASS: docker_cli_pull_test.go:42: DockerHubPullSuite.TestPullNonExistingImage	2.158s
+        PASS: docker_cli_pull_test.go:92: DockerHubPullSuite.TestPullScratchNotAllowed	0.044s
+        OK: 918 passed, 13 skipped
         PASS
-        coverage: 70.8% of statements
-        ---> Making bundle: test-docker-py (in bundles/1.5.0-dev/test-docker-py)
-        +++ exec docker --daemon --debug --host unix:///go/src/github.com/docker/docker/bundles/1.5.0-dev/test-docker-py/docker.sock --storage-driver vfs --exec-driver native --pidfile /go/src/github.com/docker/docker/bundles/1.5.0-dev/test-docker-py/docker.pid
-        .................................................................
+        coverage: 72.9% of statements
+        ok  	github.com/docker/docker/integration-cli	1638.553s
+        ---> Making bundle: .integration-daemon-stop (in bundles/1.9.0-dev/test-integration-cli)
+        ++++ cat bundles/1.9.0-dev/test-integration-cli/docker.pid
+        +++ kill 9453
+        +++ /etc/init.d/apparmor stop
+         * Clearing AppArmor profiles cache
+           ...done.
+        All profile caches have been cleared, but no profiles have been unloaded.
+        Unloading profiles will leave already running processes permanently
+        unconfined, which can lead to unexpected situations.
+
+        To set a process to complain mode, use the command line tool
+        'aa-complain'. To really tear down all profiles, run the init script
+        with the 'teardown' option."
+
+        ---> Making bundle: test-docker-py (in bundles/1.9.0-dev/test-docker-py)
+        ---> Making bundle: .integration-daemon-start (in bundles/1.9.0-dev/test-docker-py)
+        +++ /etc/init.d/apparmor start
+         * Starting AppArmor profiles
+        Skipping profile in /etc/apparmor.d/disable: usr.sbin.rsyslogd
+           ...done.
+        +++ exec docker daemon --debug --host unix:///go/src/github.com/docker/docker/bundles/1.9.0-dev/test-docker-py/docker.sock --storage-driver overlay --exec-driver native --pidfile bundles/1.9.0-dev/test-docker-py/docker.pid --userland-proxy=true
+        ..............s..............s......................................
         ----------------------------------------------------------------------
-        Ran 65 tests in 89.266s
+        Ran 68 tests in 79.135s
  
 
 ### Run test targets inside the development container
@@ -162,6 +185,29 @@ Most test targets require that you build these precursor targets first:
 
 ## Running individual or multiple named tests 
 
+### Unit tests 
+
+We use golang standard [testing](https://golang.org/pkg/testing/)
+package or [gocheck](https://labix.org/gocheck) for our unit tests. 
+
+You can use the `TESTDIRS` environment variable to run unit tests for
+a single package.
+
+    $ TESTDIRS='opts' make test-unit
+
+You can also use the `TESTFLAGS` environment variable to run a single test. The
+flag's value is passed as arguments to the `go test` command. For example, from
+your local host you can run the `TestBuild` test with this command:
+
+    $ TESTFLAGS='-test.run ^TestValidateIPAddress$' make test-unit
+
+On unit tests, it's better to use `TESTFLAGS` in combination with
+`TESTDIRS` to make it quicker to run a specific test.
+
+    $ TESTDIRS='opts' TESTFLAGS='-test.run ^TestValidateIPAddress$' make test-unit
+
+### Integration tests 
+
 We use [gocheck](https://labix.org/gocheck) for our integration-cli tests. 
 You can use the `TESTFLAGS` environment variable to run a single test. The
 flag's value is passed as arguments to the `go test` command. For example, from
@@ -173,102 +219,47 @@ To run the same test inside your Docker development container, you do this:
 
     root@5f8630b873fe:/go/src/github.com/docker/docker# TESTFLAGS='-check.f TestBuild*' hack/make.sh binary test-integration-cli
 
-## If tests under Boot2Docker fail due to disk space errors
+## Testing the Windows binary against a Linux daemon
 
-Running the tests requires about 2GB of memory. If you are running your
-container on bare metal, that is you are not running with Boot2Docker, your
-Docker development container is able to take the memory it requires directly
-from your local host.
+This explains how to test the Windows binary on a Windows machine set up as a
+development environment.  The tests will be run against a docker daemon 
+running on a remote Linux machine. You'll use  **Git Bash** that came with the 
+Git for Windows installation.  **Git Bash**, just as it sounds, allows you to
+run a Bash terminal on Windows. 
 
-If you are running Docker using Boot2Docker, the VM uses 2048MB by default.
-This means you can exceed the memory of your VM running tests in a Boot2Docker
-environment. When the test suite runs out of memory, it returns errors similar
-to the following:
+1.  If you don't have one open already, start a Git Bash terminal.
 
-    server.go:1302 Error: Insertion failed because database is full: database or
-    disk is full
-
-    utils_test.go:179: Error copy: exit status 1 (cp: writing
-    '/tmp/docker-testd5c9-[...]': No space left on device
-
-To increase the memory on your VM, you need to reinitialize the Boot2Docker VM
-with new memory settings.
-
-1. Stop all running containers.
-
-2. View the current memory setting.
-
-        $ boot2docker info
-        {
-            "Name": "boot2docker-vm",
-            "UUID": "491736fd-4075-4be7-a6f5-1d4cdcf2cc74",
-            "Iso": "/Users/mary/.boot2docker/boot2docker.iso",
-            "State": "running",
-            "CPUs": 8,
-            "Memory": 2048,
-            "VRAM": 8,
-            "CfgFile": "/Users/mary/VirtualBox VMs/boot2docker-vm/boot2docker-vm.vbox",
-            "BaseFolder": "/Users/mary/VirtualBox VMs/boot2docker-vm",
-            "OSType": "",
-            "Flag": 0,
-            "BootOrder": null,
-            "DockerPort": 0,
-            "SSHPort": 2022,
-            "SerialFile": "/Users/mary/.boot2docker/boot2docker-vm.sock"
-        }
-
-
-3. Delete your existing `boot2docker` profile.
-
-        $ boot2docker delete
-
-4. Reinitialize `boot2docker` and specify a higher memory.
-
-        $ boot2docker init -m 5555
-
-5. Verify the memory was reset.
-
-        $ boot2docker info
-
-6. Restart your container and try your test again.
-
-
-## Testing just the Windows client
-
-This explains how to test the Windows client on a Windows server set up as a
-development environment.  You'll use the **Git Bash** came with the Git for
-Windows installation.  **Git Bash** just as it sounds allows you to run a Bash
-terminal on Windows. 
-
-1.  If you don't have one, start a Git Bash terminal.
-
-	 ![Git Bash](/project/images/git_bash.png)
+	 ![Git Bash](images/git_bash.png)
 
 2. Change to the `docker` source directory.
 
 		$ cd /c/gopath/src/github.com/docker/docker
     
-3. Set `DOCKER_CLIENTONLY` as follows:
+3. Set `DOCKER_REMOTE_DAEMON` as follows:
 
-		$ export DOCKER_CLIENTONLY=1
-     
-	This ensures you are building only the client binary instead of both the
-	binary and the daemon.
-	
+		$ export DOCKER_REMOTE_DAEMON=1
+
 4. Set `DOCKER_TEST_HOST` to the `tcp://IP_ADDRESS:2376` value; substitute your
-machine's actual IP address, for example:
+Linux machines actual IP address. For example:
 
-		$ export DOCKER_TEST_HOST=tcp://263.124.23.200:2376
+		$ export DOCKER_TEST_HOST=tcp://213.124.23.200:2376
 
-5. Make the binary and the test:
+5. Make the binary and run the tests:
 
 		$ hack/make.sh binary test-integration-cli
   	
-   Many tests are skipped on Windows for various reasons. You see which tests
-   were skipped by re-running the make and passing in the 
-   `TESTFLAGS='-test.v'` value.
-        
+   Some tests are skipped on Windows for various reasons. You can see which
+   tests were skipped by re-running the make and passing in the 
+   `TESTFLAGS='-test.v'` value. For example 
 
+		$ TESTFLAGS='-test.v' hack/make.sh binary test-integration-cli
+		
+	Should you wish to run a single test such as one with the name 
+	'TestExample', you can pass in `TESTFLAGS='-check.f TestExample'`. For
+	example 
+	
+		$TESTFLAGS='-check.f TestExample' hack/make.sh binary test-integration-cli
+        
 You can now choose to make changes to the Docker source or the tests. If you
 make any changes just run these commands again.
 
@@ -317,13 +308,13 @@ can browse the docs.
 
 4. Enter the URL in your browser.
 
-    If you are running Boot2Docker, replace the default localhost address
+    If you are using Docker Machine, replace the default localhost address
     (0.0.0.0) with your DOCKERHOST value. You can get this value at any time by
-    entering `boot2docker ip` at the command line.
+    entering `docker-machine ip <machine-name>` at the command line.
 
 5. Once in the documentation, look for the red notice to verify you are seeing the correct build.
 
-    ![Beta documentation](/project/images/red_notice.png)
+    ![Beta documentation](images/red_notice.png)
 
 6. Navigate to your new or changed document.
 
@@ -337,4 +328,4 @@ can browse the docs.
 Congratulations, you have successfully completed the basics you need to
 understand the Docker test framework. In the next steps, you use what you have
 learned so far to [contribute to Docker by working on an
-issue](/project/make-a-contribution/).
+issue](make-a-contribution.md).

@@ -14,7 +14,7 @@ TERM
 
 # DESCRIPTION
 
-Search Docker Hub for an image with that matches the specified `TERM`. The table
+Search Docker Hub for images that match the specified `TERM`. The table
 of images returned displays the name, description (truncated by default), number
 of stars awarded, whether the image is official, and whether it is automated.
 
@@ -30,8 +30,8 @@ of stars awarded, whether the image is official, and whether it is automated.
 **--no-trunc**=*true*|*false*
    Don't truncate output. The default is *false*.
 
-**-s**, **--stars**=0
-   Only displays with at least x stars
+**-s**, **--stars**=X
+   Only displays with at least X stars. The default is zero.
 
 # EXAMPLES
 
@@ -52,7 +52,7 @@ ranked 3 or higher:
 Search Docker Hub for the term 'fedora' and only display automated images
 ranked 1 or higher:
 
-    $ docker search -s 1 -t fedora
+    $ docker search --automated -s 1 fedora
     NAME               DESCRIPTION                                     STARS OFFICIAL  AUTOMATED
     goldmann/wildfly   A WildFly application server running on a ...   3               [OK]
     tutum/fedora-20    Fedora 20 image with SSH access. For the r...   1               [OK]

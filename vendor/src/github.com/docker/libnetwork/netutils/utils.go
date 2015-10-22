@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
+	"github.com/docker/libnetwork/types"
 	"github.com/vishvananda/netlink"
 )
 
@@ -57,35 +59,27 @@ func CheckRouteOverlaps(toCheck *net.IPNet) error {
 
 // NetworkOverlaps detects overlap between one IPNet and another
 func NetworkOverlaps(netX *net.IPNet, netY *net.IPNet) bool {
-	// Check if both netX and netY are ipv4 or ipv6
-	if (netX.IP.To4() != nil && netY.IP.To4() != nil) ||
-		(netX.IP.To4() == nil && netY.IP.To4() == nil) {
-		if firstIP, _ := NetworkRange(netX); netY.Contains(firstIP) {
-			return true
-		}
-		if firstIP, _ := NetworkRange(netY); netX.Contains(firstIP) {
-			return true
-		}
-	}
-	return false
+	return netX.Contains(netY.IP) || netY.Contains(netX.IP)
 }
 
 // NetworkRange calculates the first and last IP addresses in an IPNet
 func NetworkRange(network *net.IPNet) (net.IP, net.IP) {
-	var netIP net.IP
-	if network.IP.To4() != nil {
-		netIP = network.IP.To4()
-	} else if network.IP.To16() != nil {
-		netIP = network.IP.To16()
-	} else {
+	if network == nil {
 		return nil, nil
 	}
 
-	lastIP := make([]byte, len(netIP), len(netIP))
-	for i := 0; i < len(netIP); i++ {
-		lastIP[i] = netIP[i] | ^network.Mask[i]
+	firstIP := network.IP.Mask(network.Mask)
+	lastIP := types.GetIPCopy(firstIP)
+	for i := 0; i < len(firstIP); i++ {
+		lastIP[i] = firstIP[i] | ^network.Mask[i]
 	}
-	return netIP.Mask(network.Mask), net.IP(lastIP)
+
+	if network.IP.To4() != nil {
+		firstIP = firstIP.To4()
+		lastIP = lastIP.To4()
+	}
+
+	return firstIP, lastIP
 }
 
 // GetIfaceAddr returns the first IPv4 address and slice of IPv6 addresses for the specified network interface
@@ -118,24 +112,34 @@ func GetIfaceAddr(name string) (net.Addr, []net.Addr, error) {
 	return addrs4[0], addrs6, nil
 }
 
-// GenerateRandomMAC returns a new 6-byte(48-bit) hardware address (MAC)
-func GenerateRandomMAC() net.HardwareAddr {
+func genMAC(ip net.IP) net.HardwareAddr {
 	hw := make(net.HardwareAddr, 6)
 	// The first byte of the MAC address has to comply with these rules:
 	// 1. Unicast: Set the least-significant bit to 0.
 	// 2. Address is locally administered: Set the second-least-significant bit (U/L) to 1.
-	// 3. As "small" as possible: The veth address has to be "smaller" than the bridge address.
 	hw[0] = 0x02
 	// The first 24 bits of the MAC represent the Organizationally Unique Identifier (OUI).
 	// Since this address is locally administered, we can do whatever we want as long as
 	// it doesn't conflict with other addresses.
 	hw[1] = 0x42
-	// Randomly generate the remaining 4 bytes (2^32)
-	_, err := rand.Read(hw[2:])
-	if err != nil {
-		return nil
+	// Fill the remaining 4 bytes based on the input
+	if ip == nil {
+		rand.Read(hw[2:])
+	} else {
+		copy(hw[2:], ip.To4())
 	}
 	return hw
+}
+
+// GenerateRandomMAC returns a new 6-byte(48-bit) hardware address (MAC)
+func GenerateRandomMAC() net.HardwareAddr {
+	return genMAC(nil)
+}
+
+// GenerateMACFromIP returns a locally administered MAC address where the 4 least
+// significant bytes are derived from the IPv4 address.
+func GenerateMACFromIP(ip net.IP) net.HardwareAddr {
+	return genMAC(ip)
 }
 
 // GenerateRandomName returns a new name joined with a prefix.  This size
@@ -146,4 +150,23 @@ func GenerateRandomName(prefix string, size int) (string, error) {
 		return "", err
 	}
 	return prefix + hex.EncodeToString(id)[:size], nil
+}
+
+// GenerateIfaceName returns an interface name using the passed in
+// prefix and the length of random bytes. The api ensures that the
+// there are is no interface which exists with that name.
+func GenerateIfaceName(prefix string, len int) (string, error) {
+	for i := 0; i < 3; i++ {
+		name, err := GenerateRandomName(prefix, len)
+		if err != nil {
+			continue
+		}
+		if _, err := net.InterfaceByName(name); err != nil {
+			if strings.Contains(err.Error(), "no such") {
+				return name, nil
+			}
+			return "", err
+		}
+	}
+	return "", types.InternalErrorf("could not generate interface name")
 }

@@ -12,7 +12,10 @@ import (
 	"github.com/docker/docker/runconfig"
 )
 
-const defaultTimeIncrement = 100
+const (
+	defaultTimeIncrement = 100
+	loggerCloseTimeout   = 10 * time.Second
+)
 
 // containerMonitor monitors the execution of a container's main process.
 // If a restart policy is specified for the container the monitor will ensure that the
@@ -116,6 +119,10 @@ func (m *containerMonitor) Start() error {
 		}
 		m.Close()
 	}()
+	// reset stopped flag
+	if m.container.HasBeenManuallyStopped {
+		m.container.HasBeenManuallyStopped = false
+	}
 
 	// reset the restart count
 	m.container.RestartCount = -1
@@ -131,11 +138,11 @@ func (m *containerMonitor) Start() error {
 
 		pipes := execdriver.NewPipes(m.container.stdin, m.container.stdout, m.container.stderr, m.container.Config.OpenStdin)
 
-		m.container.LogEvent("start")
+		m.container.logEvent("start")
 
 		m.lastStartTime = time.Now()
 
-		if exitStatus, err = m.container.daemon.Run(m.container, pipes, m.callback); err != nil {
+		if exitStatus, err = m.container.daemon.run(m.container, pipes, m.callback); err != nil {
 			// if we receive an internal error from the initial start of a container then lets
 			// return it instead of entering the restart loop
 			if m.container.RestartCount == 0 {
@@ -154,11 +161,8 @@ func (m *containerMonitor) Start() error {
 		m.resetMonitor(err == nil && exitStatus.ExitCode == 0)
 
 		if m.shouldRestart(exitStatus.ExitCode) {
-			m.container.SetRestarting(&exitStatus)
-			if exitStatus.OOMKilled {
-				m.container.LogEvent("oom")
-			}
-			m.container.LogEvent("die")
+			m.container.setRestarting(&exitStatus)
+			m.container.logEvent("die")
 			m.resetContainer(true)
 
 			// sleep with a small time increment between each restart to help avoid issues cased by quickly
@@ -172,10 +176,8 @@ func (m *containerMonitor) Start() error {
 			}
 			continue
 		}
-		if exitStatus.OOMKilled {
-			m.container.LogEvent("oom")
-		}
-		m.container.LogEvent("die")
+
+		m.container.logEvent("die")
 		m.resetContainer(true)
 		return err
 	}
@@ -220,11 +222,12 @@ func (m *containerMonitor) shouldRestart(exitCode int) bool {
 
 	// do not restart if the user or docker has requested that this container be stopped
 	if m.shouldStop {
+		m.container.HasBeenManuallyStopped = !m.container.daemon.shutdown
 		return false
 	}
 
 	switch {
-	case m.restartPolicy.IsAlways():
+	case m.restartPolicy.IsAlways(), m.restartPolicy.IsUnlessStopped():
 		return true
 	case m.restartPolicy.IsOnFailure():
 		// the default value of 0 for MaximumRetryCount means that we will not enforce a maximum count
@@ -242,7 +245,14 @@ func (m *containerMonitor) shouldRestart(exitCode int) bool {
 
 // callback ensures that the container's state is properly updated after we
 // received ack from the execution drivers
-func (m *containerMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
+func (m *containerMonitor) callback(processConfig *execdriver.ProcessConfig, pid int, chOOM <-chan struct{}) error {
+	go func() {
+		_, ok := <-chOOM
+		if ok {
+			m.container.logEvent("oom")
+		}
+	}()
+
 	if processConfig.Tty {
 		// The callback is called after the process Start()
 		// so we are in the parent process. In TTY mode, stdin/out/err is the PtySlave
@@ -262,9 +272,10 @@ func (m *containerMonitor) callback(processConfig *execdriver.ProcessConfig, pid
 		close(m.startSignal)
 	}
 
-	if err := m.container.ToDisk(); err != nil {
-		logrus.Debugf("%s", err)
+	if err := m.container.toDiskLocking(); err != nil {
+		logrus.Errorf("Error saving container to disk: %v", err)
 	}
+	return nil
 }
 
 // resetContainer resets the container's IO and ensures that the command is able to be executed again
@@ -310,7 +321,7 @@ func (m *containerMonitor) resetContainer(lock bool) {
 				close(exit)
 			}()
 			select {
-			case <-time.After(1 * time.Second):
+			case <-time.After(loggerCloseTimeout):
 				logrus.Warnf("Logger didn't exit in time: logs may be truncated")
 			case <-exit:
 			}

@@ -32,7 +32,12 @@ func newLink(parentIP, childIP string, ports []types.TransportPort, bridge strin
 
 func (l *link) Enable() error {
 	// -A == iptables append flag
-	return linkContainers("-A", l.parentIP, l.childIP, l.ports, l.bridge, false)
+	linkFunction := func() error {
+		return linkContainers("-A", l.parentIP, l.childIP, l.ports, l.bridge, false)
+	}
+
+	iptables.OnReloaded(func() { linkFunction() })
+	return linkFunction()
 }
 
 func (l *link) Disable() {
@@ -69,9 +74,9 @@ func linkContainers(action, parentIP, childIP string, ports []types.TransportPor
 		return InvalidLinkIPAddrError(childIP)
 	}
 
-	chain := iptables.Chain{Name: DockerChain, Bridge: bridge}
+	chain := iptables.ChainInfo{Name: DockerChain}
 	for _, port := range ports {
-		err := chain.Link(nfAction, ip1, ip2, int(port.Port), port.Proto.String())
+		err := chain.Link(nfAction, ip1, ip2, int(port.Port), port.Proto.String(), bridge)
 		if !ignoreErrors && err != nil {
 			return err
 		}
