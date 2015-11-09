@@ -305,14 +305,14 @@ func (s *DockerSuite) TestSavePartialAndLoad(c *check.C) {
 		deleteContainer(cleanedContainerID)
 		return imageID
 	}
-	regTags := regexp.MustCompile(`(?s)"Tags": \[[^][]*\]`)
+	regTags := regexp.MustCompile(`(?s)"RepoTags": \[[^][]*\]`)
 	inspectImage := func(img string) string {
 		inspectCmd := exec.Command(dockerBinary, "inspect", img)
 		result, _, err := runCommandWithOutput(inspectCmd)
 		if err != nil {
 			c.Fatalf("the image should exist: %v %v", img, err)
 		}
-		return regTags.ReplaceAllLiteralString(result, `"Tags": []`)
+		return regTags.ReplaceAllLiteralString(result, `"RepoTags": []`)
 	}
 	saveImage := func(tag string, filename string, exclude string) {
 		saveCmdTemplate := `%v save -o %s -e %s %v`
