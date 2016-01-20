@@ -108,7 +108,7 @@ type History struct {
 type Exporter interface {
 	Load(io.ReadCloser, io.Writer) error
 	// TODO: Load(net.Context, io.ReadCloser, <- chan StatusMessage) error
-	Save([]string, io.Writer) error
+	Save([]string, io.Writer, []string) error
 }
 
 // NewFromJSON creates an Image configuration from json.

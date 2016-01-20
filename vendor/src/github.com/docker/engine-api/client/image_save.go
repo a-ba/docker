@@ -9,7 +9,7 @@ import (
 
 // ImageSave retrieves one or more images from the docker host as a io.ReadCloser.
 // It's up to the caller to store the images and close the stream.
-func (cli *Client) ImageSave(imageIDs []string, excludeIDs *ListOpts) (io.ReadCloser, error) {
+func (cli *Client) ImageSave(imageIDs []string, excludeIDs opts.ListOpts) (io.ReadCloser, error) {
 	query := url.Values{
 		"names": imageIDs,
 	}

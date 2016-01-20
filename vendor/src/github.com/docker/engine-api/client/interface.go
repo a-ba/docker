@@ -3,6 +3,7 @@ package client
 import (
 	"io"
 
+	"github.com/docker/docker/opts"
 	"github.com/docker/engine-api/types"
 	"github.com/docker/engine-api/types/container"
 	"github.com/docker/engine-api/types/filters"
@@ -55,7 +56,7 @@ type APIClient interface {
 	ImagePush(options types.ImagePushOptions, privilegeFunc RequestPrivilegeFunc) (io.ReadCloser, error)
 	ImageRemove(options types.ImageRemoveOptions) ([]types.ImageDelete, error)
 	ImageSearch(options types.ImageSearchOptions, privilegeFunc RequestPrivilegeFunc) ([]registry.SearchResult, error)
-	ImageSave(imageIDs []string) (io.ReadCloser, error)
+	ImageSave(imageIDs []string, excludeIDs opts.ListOpts) (io.ReadCloser, error)
 	ImageTag(options types.ImageTagOptions) error
 	Info() (types.Info, error)
 	NetworkConnect(networkID, containerID string, config *network.EndpointSettings) error
