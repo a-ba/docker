@@ -28,7 +28,7 @@ yourself. This naming provides two useful functions:
    container containing a web application `web`.
 
 *  Names provide Docker with a reference point that allows it to refer to other
-   containers. There are several commands that support this and you'll use one in a exercise later.
+   containers. There are several commands that support this and you'll use one in an exercise later.
 
 You name your container by using the `--name` flag, for example launch a new container called web:
 
@@ -61,7 +61,7 @@ You can also use `docker inspect` with the container's name.
 
 Container names must be unique. That means you can only call one container
 `web`. If you want to re-use a container name you must delete the old container
-(with `docker rm`) before you can reuse the name with a new container. Go ahead and stop and them remove your `web` container.
+(with `docker rm`) before you can reuse the name with a new container. Go ahead and stop and remove your old `web` container.
 
     $ docker stop web
     web
@@ -73,7 +73,7 @@ Container names must be unique. That means you can only call one container
 
 Docker includes support for networking containers through the use of **network
 drivers**. By default, Docker provides two network drivers for you, the
-`bridge` and the `overlay` driver. You can also write a network driver plugin so
+`bridge` and the `overlay` drivers. You can also write a network driver plugin so
 that you can create your own drivers but that is an advanced task.
 
 Every installation of the Docker Engine automatically includes three default networks. You can list them:
@@ -92,6 +92,7 @@ The network named `bridge` is a special network. Unless you tell it otherwise, D
 Inspecting the network is an easy way to find out the container's IP address.
 
 ```bash
+$ docker network inspect bridge
 [
     {
         "Name": "bridge",
@@ -188,7 +189,8 @@ If you inspect your `my-bridge-network` you'll see it has a container attached.
 You can also inspect your container to see where it is connected:
 
     $ docker inspect --format='{{json .NetworkSettings.Networks}}'  db
-    {"bridge":{"EndpointID":"508b170d56b2ac9e4ef86694b0a76a22dd3df1983404f7321da5649645bf7043","Gateway":"172.17.0.1","IPAddress":"172.17.0.3","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"MacAddress":"02:42:ac:11:00:02"}}
+    {"my-bridge-network":{"NetworkID":"7d86d31b1478e7cca9ebed7e73aa0fdeec46c5ca29497431d3007d2d9e15ed99",
+    "EndpointID":"508b170d56b2ac9e4ef86694b0a76a22dd3df1983404f7321da5649645bf7043","Gateway":"172.18.0.1","IPAddress":"172.18.0.2","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"MacAddress":"02:42:ac:11:00:02"}}
 
 Now, go ahead and start your by now familiar web application. This time leave off the `-P` flag and also don't specify a network.
 
@@ -197,11 +199,12 @@ Now, go ahead and start your by now familiar web application. This time leave of
 Which network is your `web` application running under? Inspect the application and you'll find it is running in the default `bridge` network.
 
     $ docker inspect --format='{{json .NetworkSettings.Networks}}'  web
-    {"bridge":{"EndpointID":"508b170d56b2ac9e4ef86694b0a76a22dd3df1983404f7321da5649645bf7043","Gateway":"172.17.0.1","IPAddress":"172.17.0.3","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"MacAddress":"02:42:ac:11:00:02"}}
+    {"bridge":{"NetworkID":"7ea29fc1412292a2d7bba362f9253545fecdfa8ce9a6e37dd10ba8bee7129812",
+    "EndpointID":"508b170d56b2ac9e4ef86694b0a76a22dd3df1983404f7321da5649645bf7043","Gateway":"172.17.0.1","IPAddress":"172.17.0.2","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"MacAddress":"02:42:ac:11:00:02"}}
 
 Then, get the IP address of your `web`
 
-    $ docker inspect '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' web
+    $ docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' web
     172.17.0.2
 
 Now, open a shell to your running `db` container:
@@ -218,16 +221,16 @@ After a bit, use CTRL-C to end the `ping` and you'll find the ping failed. That 
 
 Docker networking allows you to attach a container to as many networks as you like. You can also attach an already running container. Go ahead and attach your running `web` app to the `my-bridge-network`.
 
-    $ docker network connect my-bridge-network Web
+    $ docker network connect my-bridge-network web
 
 Open a shell into the `db` application again and try the ping command. This time just use the container name `web` rather than the IP Address.
 
     $ docker exec -it db bash
     root@a205f0dd33b2:/# ping web
-    PING web (172.19.0.3) 56(84) bytes of data.
-    64 bytes from web (172.19.0.3): icmp_seq=1 ttl=64 time=0.095 ms
-    64 bytes from web (172.19.0.3): icmp_seq=2 ttl=64 time=0.060 ms
-    64 bytes from web (172.19.0.3): icmp_seq=3 ttl=64 time=0.066 ms
+    PING web (172.18.0.3) 56(84) bytes of data.
+    64 bytes from web (172.18.0.3): icmp_seq=1 ttl=64 time=0.095 ms
+    64 bytes from web (172.18.0.3): icmp_seq=2 ttl=64 time=0.060 ms
+    64 bytes from web (172.18.0.3): icmp_seq=3 ttl=64 time=0.066 ms
     ^C
     --- web ping statistics ---
     3 packets transmitted, 3 received, 0% packet loss, time 2000ms

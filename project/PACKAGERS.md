@@ -58,6 +58,8 @@ To build the Docker daemon, you will additionally need:
   2.02.89 or later
 * btrfs-progs version 3.16.1 or later (unless using an older version is
   absolutely necessary, in which case 3.8 is the minimum)
+* libseccomp version 2.2.1 or later (for build tag seccomp)
+* yubico-piv-tool version 1.1.0 or later (for experimental)
 
 Be sure to also check out Docker's Dockerfile for the most up-to-date list of
 these build-time dependencies.
@@ -299,11 +301,11 @@ the client will even run on alternative platforms such as Mac OS X / Darwin.
 Some of Docker's features are activated by using optional command-line flags or
 by having support for them in the kernel or userspace. A few examples include:
 
-* LXC execution driver (requires version 1.0.7 or later of lxc and the lxc-libs)
 * AUFS graph driver (requires AUFS patches/support enabled in the kernel, and at
   least the "auplink" utility from aufs-tools)
 * BTRFS graph driver (requires BTRFS support enabled in the kernel)
 * ZFS graph driver (requires userspace zfs-utils and a corresponding kernel module)
+* Libseccomp to allow running seccomp profiles with containers
 
 ## Daemon Init Script
 

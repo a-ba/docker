@@ -18,14 +18,21 @@ func (s *DockerSuite) TestInfoEnsureSucceeds(c *check.C) {
 	stringsToCheck := []string{
 		"ID:",
 		"Containers:",
+		" Running:",
+		" Paused:",
+		" Stopped:",
 		"Images:",
 		"Execution Driver:",
+		"OSType:",
+		"Architecture:",
 		"Logging Driver:",
 		"Operating System:",
 		"CPUs:",
 		"Total Memory:",
 		"Kernel Version:",
 		"Storage Driver:",
+		"Volume:",
+		"Network:",
 	}
 
 	if utils.ExperimentalBuild() {
@@ -33,16 +40,14 @@ func (s *DockerSuite) TestInfoEnsureSucceeds(c *check.C) {
 	}
 
 	for _, linePrefix := range stringsToCheck {
-		if !strings.Contains(out, linePrefix) {
-			c.Errorf("couldn't find string %v in output", linePrefix)
-		}
+		c.Assert(out, checker.Contains, linePrefix, check.Commentf("couldn't find string %v in output", linePrefix))
 	}
 }
 
 // TestInfoDiscoveryBackend verifies that a daemon run with `--cluster-advertise` and
 // `--cluster-store` properly show the backend's endpoint in info output.
 func (s *DockerSuite) TestInfoDiscoveryBackend(c *check.C) {
-	testRequires(c, SameHostDaemon)
+	testRequires(c, SameHostDaemon, DaemonIsLinux)
 
 	d := NewDaemon(c)
 	discoveryBackend := "consul://consuladdr:consulport/some/path"
@@ -60,7 +65,7 @@ func (s *DockerSuite) TestInfoDiscoveryBackend(c *check.C) {
 // TestInfoDiscoveryInvalidAdvertise verifies that a daemon run with
 // an invalid `--cluster-advertise` configuration
 func (s *DockerSuite) TestInfoDiscoveryInvalidAdvertise(c *check.C) {
-	testRequires(c, SameHostDaemon)
+	testRequires(c, SameHostDaemon, DaemonIsLinux)
 
 	d := NewDaemon(c)
 	discoveryBackend := "consul://consuladdr:consulport/some/path"
@@ -77,7 +82,7 @@ func (s *DockerSuite) TestInfoDiscoveryInvalidAdvertise(c *check.C) {
 // TestInfoDiscoveryAdvertiseInterfaceName verifies that a daemon run with `--cluster-advertise`
 // configured with interface name properly show the advertise ip-address in info output.
 func (s *DockerSuite) TestInfoDiscoveryAdvertiseInterfaceName(c *check.C) {
-	testRequires(c, SameHostDaemon)
+	testRequires(c, SameHostDaemon, Network, DaemonIsLinux)
 
 	d := NewDaemon(c)
 	discoveryBackend := "consul://consuladdr:consulport/some/path"
@@ -91,9 +96,7 @@ func (s *DockerSuite) TestInfoDiscoveryAdvertiseInterfaceName(c *check.C) {
 	c.Assert(err, checker.IsNil)
 	addrs, err := iface.Addrs()
 	c.Assert(err, checker.IsNil)
-	if len(addrs) <= 0 {
-		c.Fatalf("addrs %v has to have at least one element", addrs)
-	}
+	c.Assert(len(addrs), checker.GreaterThan, 0)
 	ip, _, err := net.ParseCIDR(addrs[0].String())
 	c.Assert(err, checker.IsNil)
 
@@ -101,4 +104,45 @@ func (s *DockerSuite) TestInfoDiscoveryAdvertiseInterfaceName(c *check.C) {
 	c.Assert(err, checker.IsNil)
 	c.Assert(out, checker.Contains, fmt.Sprintf("Cluster store: %s\n", discoveryBackend))
 	c.Assert(out, checker.Contains, fmt.Sprintf("Cluster advertise: %s:2375\n", ip.String()))
+}
+
+func (s *DockerSuite) TestInfoDisplaysRunningContainers(c *check.C) {
+	testRequires(c, DaemonIsLinux)
+
+	dockerCmd(c, "run", "-d", "busybox", "top")
+	out, _ := dockerCmd(c, "info")
+	c.Assert(out, checker.Contains, fmt.Sprintf("Containers: %d\n", 1))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Running: %d\n", 1))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Paused: %d\n", 0))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Stopped: %d\n", 0))
+}
+
+func (s *DockerSuite) TestInfoDisplaysPausedContainers(c *check.C) {
+	testRequires(c, DaemonIsLinux)
+
+	out, _ := dockerCmd(c, "run", "-d", "busybox", "top")
+	cleanedContainerID := strings.TrimSpace(out)
+
+	dockerCmd(c, "pause", cleanedContainerID)
+
+	out, _ = dockerCmd(c, "info")
+	c.Assert(out, checker.Contains, fmt.Sprintf("Containers: %d\n", 1))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Running: %d\n", 0))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Paused: %d\n", 1))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Stopped: %d\n", 0))
+}
+
+func (s *DockerSuite) TestInfoDisplaysStoppedContainers(c *check.C) {
+	testRequires(c, DaemonIsLinux)
+
+	out, _ := dockerCmd(c, "run", "-d", "busybox", "top")
+	cleanedContainerID := strings.TrimSpace(out)
+
+	dockerCmd(c, "stop", cleanedContainerID)
+
+	out, _ = dockerCmd(c, "info")
+	c.Assert(out, checker.Contains, fmt.Sprintf("Containers: %d\n", 1))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Running: %d\n", 0))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Paused: %d\n", 0))
+	c.Assert(out, checker.Contains, fmt.Sprintf(" Stopped: %d\n", 1))
 }

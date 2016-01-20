@@ -5,9 +5,9 @@ information on the list of deprecated flags and APIs please have a look at
 https://docs.docker.com/misc/deprecated/ where target removal dates can also
 be found.
 
-## 1.9.1
+## 1.9.1 (2015-11-21)
 
-## Runtime
+### Runtime
 
 - Do not prevent daemon from booting if images could not be restored (#17695)
 - Force IPC mount to unmount on daemon shutdown/init (#17539)
@@ -21,17 +21,17 @@ be found.
 - selinux: only relabel if user requested so with the `z` option (#17450, #17834)
 - Do not make network calls when normalizing names (#18014)
 
-## Client
+### Client
 
 - Fix `docker login` on windows (#17738)
 - Fix bug with `docker inspect` output when not connected to daemon (#17715)
 - Fix `docker inspect -f {{.HostConfig.Dns}} somecontainer` (#17680)
 
-## Builder
+### Builder
 
 - Fix regression with symlink behavior in ADD/COPY (#17710)
 
-## Networking
+### Networking
 
 - Allow passing a network ID as an argument for `--net` (#17558)
 - Fix connect to host and prevent disconnect from host for `host` network (#17476)
@@ -41,13 +41,13 @@ be found.
 - Allow port-mapping only for endpoints created on docker run (#17858)
 - Fixed an endpoint delete issue with a possible stale sbox (#18102)
 
-## Distribution
+### Distribution
 
 - Correct parent chain in v2 push when v1Compatibility files on the disk are inconsistent (#18047)
 
 ## 1.9.0 (2015-11-03)
 
-## Runtime
+### Runtime
 
 + `docker stats` now returns block IO metrics (#15005)
 + `docker stats` now details network stats per interface (#15786)
@@ -77,11 +77,11 @@ with `ro` option (#14965)
 - Fix an issue with incorrect template execution in `docker inspect` (#17284)
 - DEPRECATE `-c` short flag variant for `--cpu-shares` in docker run (#16271)
 
-## Client
+### Client
 
 + Allow `docker import` to import from local files (#11907)
 
-## Builder
+### Builder
 
 + Add a `STOPSIGNAL` Dockerfile instruction allowing to set a different
 stop-signal for the container process (#15307)
@@ -89,7 +89,7 @@ stop-signal for the container process (#15307)
 that allows to add build-time environment variables (#15182)
 - Improve cache miss performance (#16890)
 
-## Storage
+### Storage
 
 - devicemapper: Implement deferred deletion capability (#16381)
 
@@ -111,7 +111,7 @@ that allows to add build-time environment variables (#15182)
   Those are now specific to the `bridge` network. Use `NetworkSettings.Networks` to inspect
   the networking settings of a container per network.
 
-## Volumes
+### Volumes
 
 + New top-level `volume` subcommand and API (#14242)
 - Move API volume driver settings to host-specific config (#15798)
@@ -120,7 +120,7 @@ that allows to add build-time environment variables (#15182)
 (#15507)
 - DEPRECATE auto-creating missing host paths for bind mounts (#16349)
 
-## Logging
+### Logging
 
 + Add `awslogs` logging driver for Amazon CloudWatch (#15495)
 + Add generic `tag` log option to allow customizing container/image
@@ -128,7 +128,7 @@ information passed to driver (e.g. show container names) (#15384)
 - Implement the `docker logs` endpoint for the journald driver (#13707)
 - DEPRECATE driver-specific log tags (e.g. `syslog-tag`, etc.) (#15384)
 
-## Distribution
+### Distribution
 
 + `docker search` now works with partial names (#16509)
 - Push optimization: avoid buffering to file (#15493)
@@ -141,7 +141,7 @@ by another client (#15489)
 `DOCKER_CONTENT_TRUST_OFFLINE_PASSPHRASE` and
 `DOCKER_CONTENT_TRUST_TAGGING_PASSPHRASE` (#16894)
 
-## Security
+### Security
 
 + Add SELinux profiles to the rpm package (#15832)
 - Fix various issues with AppArmor profiles provided in the deb package
@@ -405,7 +405,7 @@ by another client (#15489)
 + Docker daemon has full IPv6 support
 + The `docker run` command can take the `--pid=host` flag to use the host PID namespace, which makes it possible for example to debug host processes using containerized debugging tools
 + The `docker run` command can take the `--read-only` flag to make the container’s root filesystem mounted as readonly, which can be used in combination with volumes to force a container’s processes to only write to locations that will be persisted
-+ Container total memory usage can be limited for `docker run` using the `—memory-swap` flag
++ Container total memory usage can be limited for `docker run` using the `--memory-swap` flag
 * Major stability improvements for devicemapper storage driver
 * Better integration with host system: containers will reflect changes to the host's `/etc/resolv.conf` file when restarted
 * Better integration with host system: per-container iptable rules are moved to the DOCKER chain

@@ -9,25 +9,32 @@ source 'hack/.vendor-helpers.sh'
 clone git github.com/Azure/go-ansiterm 70b2c90b260171e829f1ebd7c17f600c11858dbe
 clone git github.com/Sirupsen/logrus v0.8.2 # logrus is a common dependency among multiple deps
 clone git github.com/docker/libtrust 9cbd2a1374f46905c68a4eb3694a130610adc62a
-clone git github.com/go-check/check 64131543e7896d5bcc6bd5a76287eb75ea96c673
+clone git github.com/go-check/check 11d3bc7aa68e238947792f30573146a3231fc0f1
 clone git github.com/gorilla/context 14f550f51a
 clone git github.com/gorilla/mux e444e69cbd
 clone git github.com/kr/pty 5cf931ef8f
+clone git github.com/mattn/go-shellwords v1.0.0
 clone git github.com/mattn/go-sqlite3 v1.1.0
-clone git github.com/microsoft/hcsshim 7f646aa6b26bcf90caee91e93cde4a80d0d8a83e
+clone git github.com/microsoft/hcsshim de43b42b5ce14dfdcbeedb0628b0032174d89caa
 clone git github.com/mistifyio/go-zfs v2.1.1
 clone git github.com/tchap/go-patricia v2.1.0
-clone git golang.org/x/net 3cffabab72adf04f8e3b01c5baf775361837b5fe https://github.com/golang/net.git
+clone git github.com/vdemeester/shakers 3c10293ce22b900c27acad7b28656196fcc2f73b
+clone git golang.org/x/net 47990a1ba55743e6ef1affd3a14e5bac8553615d https://github.com/golang/net.git
+clone git github.com/docker/go-units 651fc226e7441360384da338d0fd37f2440ffbe3
+clone git github.com/docker/go-connections v0.1.2
+clone git github.com/docker/engine-api v0.2.2
+clone git github.com/RackSec/srslog 6eb773f331e46fbba8eecb8e794e635e75fc04de
+clone git github.com/imdario/mergo 0.2.1
 
 #get libnetwork packages
-clone git github.com/docker/libnetwork b4ddf18317b19d6e4bcc821145589749206a7d00
+clone git github.com/docker/libnetwork v0.5.6
 clone git github.com/armon/go-metrics eb0af217e5e9747e41dd5303755356b62d28e3ec
 clone git github.com/hashicorp/go-msgpack 71c2886f5a673a35f909803f38ece5810165097b
 clone git github.com/hashicorp/memberlist 9a1e242e454d2443df330bdd51a436d5a9058fc4
 clone git github.com/hashicorp/serf 7151adcef72687bf95f451a2e0ba15cb19412bf2
 clone git github.com/docker/libkv c2aac5dbbaa5c872211edea7c0f32b3bd67e7410
 clone git github.com/vishvananda/netns 604eaf189ee867d8c147fafc28def2394e878d25
-clone git github.com/vishvananda/netlink 4b5dce31de6d42af5bb9811c6d265472199e0fec
+clone git github.com/vishvananda/netlink bfd70f556483c008636b920dda142fdaa0d59ef9
 clone git github.com/BurntSushi/toml f706d00e3de6abe700c994cdd545a1a4915af060
 clone git github.com/samuel/go-zookeeper d0e0d8e11f318e000a8cc434616d69e329edc374
 clone git github.com/deckarep/golang-set ef32fa3046d9f249d399f98ebaf9be944430fd1d
@@ -35,25 +42,30 @@ clone git github.com/coreos/etcd v2.2.0
 fix_rewritten_imports github.com/coreos/etcd
 clone git github.com/ugorji/go 5abd4e96a45c386928ed2ca2a7ef63e2533e18ec
 clone git github.com/hashicorp/consul v0.5.2
-clone git github.com/boltdb/bolt v1.0
+clone git github.com/boltdb/bolt v1.1.0
+clone git github.com/miekg/dns d27455715200c7d3e321a1e5cadb27c9ee0b0f02
 
 # get graph and distribution packages
-clone git github.com/docker/distribution 20c4b7a1805a52753dfd593ee1cc35558722a0ce # docker/1.9 branch
-clone git github.com/vbatts/tar-split v0.9.10
+clone git github.com/docker/distribution cb08de17d74bef86ce6c5abe8b240e282f5750be
+clone git github.com/vbatts/tar-split v0.9.11
 
-clone git github.com/docker/notary 089d8450d8928aa1c58fd03f09cabbde9bcb4590
-clone git github.com/endophage/gotuf 2df1c8e0a7b7e10ae2113bf37aaa1bf1c1de8cc5
-clone git github.com/jfrazelle/go 6e461eb70cb4187b41a84e9a567d7137bdbe0f16
+# get desired notary commit, might also need to be updated in Dockerfile
+clone git github.com/docker/notary docker-v1.10-3
+
+clone git google.golang.org/grpc 174192fc93efcb188fc8f46ca447f0da606b6885 https://github.com/grpc/grpc-go.git
+clone git github.com/miekg/pkcs11 80f102b5cac759de406949c47f0928b99bd64cdf
+clone git github.com/jfrazelle/go v1.5.1-1
 clone git github.com/agl/ed25519 d2b94fd789ea21d12fac1a4443dd3a3f79cda72c
 
-# this runc commit from branch relabel_fix_docker_1.9.1, pls remove it when you
-# update next time
-clone git github.com/opencontainers/runc 1349b37bd56f4f5ce2690b5b2c0f53f88a261c67 # libcontainer
+clone git github.com/opencontainers/runc d97d5e8b007e4657316eed76ea30bc0f690230cf # libcontainer
+clone git github.com/seccomp/libseccomp-golang 1b506fc7c24eec5a3693cdcbed40d9c226cfc6a1
 # libcontainer deps (see src/github.com/opencontainers/runc/Godeps/Godeps.json)
-clone git github.com/coreos/go-systemd v3
-clone git github.com/godbus/dbus v2
-clone git github.com/syndtr/gocapability 66ef2aa7a23ba682594e2b6f74cf40c0692b49fb
-clone git github.com/golang/protobuf 655cdfa588ea
+clone git github.com/coreos/go-systemd v4
+clone git github.com/godbus/dbus v3
+clone git github.com/syndtr/gocapability 2c00daeb6c3b45114c80ac44119e7b8801fdd852
+clone git github.com/golang/protobuf f7137ae6b19afbfd61a94b746fda3b3fe0491874
+
+# gelf logging driver deps
 clone git github.com/Graylog2/go-gelf 6c62a85f1d47a67f2a5144c0e745b325889a8120
 
 clone git github.com/fluent/fluent-logger-golang v1.0.0
@@ -65,7 +77,7 @@ clone git github.com/tinylib/msgp 75ee40d2601edf122ef667e2a07d600d4c44490c
 clone git gopkg.in/fsnotify.v1 v1.2.0
 
 # awslogs deps
-clone git github.com/aws/aws-sdk-go v0.7.1
+clone git github.com/aws/aws-sdk-go v0.9.9
 clone git github.com/vaughan0/go-ini a98ad7ee00ec53921f08832bc06ecf7fd600e6a1
 
 clean

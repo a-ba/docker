@@ -62,6 +62,11 @@ the build succeeds:
 
     $ docker build -t shykes/myapp .
 
+To tag the image into multiple repositories after the build,
+add multiple `-t` parameters when you run the `build` command:
+
+    $ docker build -t shykes/myapp:1.0.2 -t shykes/myapp:latest .
+
 The Docker daemon runs the instructions in the `Dockerfile` one-by-one,
 committing the result of each instruction
 to a new image if necessary, before finally outputting the ID of your
@@ -88,7 +93,7 @@ the `Using cache` message in the console output.
     Step 2 : RUN apk update &&      apk add socat &&        rm -r /var/cache/
      ---> Using cache
      ---> 21ed6e7fbb73
-    Step 3 : CMD env | grep _TCP= | sed 's/.*_PORT_\([0-9]*\)_TCP=tcp:\/\/\(.*\):\(.*\)/socat -t 100000000 TCP4-LISTEN:\1,fork,reuseaddr TCP4:\2:\3 \& wait/' | sh
+    Step 3 : CMD env | grep _TCP= | (sed 's/.*_PORT_\([0-9]*\)_TCP=tcp:\/\/\(.*\):\(.*\)/socat -t 100000000 TCP4-LISTEN:\1,fork,reuseaddr TCP4:\2:\3 \&/' && echo wait) | sh
      ---> Using cache
      ---> 7ea8aef582cc
     Successfully built 7ea8aef582cc
@@ -226,6 +231,11 @@ preprocessing step removes leading and trailing whitespace and
 eliminates `.` and `..` elements using Go's
 [filepath.Clean](http://golang.org/pkg/path/filepath/#Clean).  Lines
 that are blank after preprocessing are ignored.
+
+Beyond Go's filepath.Match rules, Docker also supports a special
+wildcard string `**` that matches any number of directories (including
+zero). For example, `**/*.go` will exclude all files that end with `.go`
+that are found in all directories, including the root of the build context.
 
 Lines starting with `!` (exclamation mark) can be used to make exceptions
 to exclusions.  The following is an example `.dockerignore` file that
@@ -552,7 +562,7 @@ ADD has two forms:
 whitespace)
 
 The `ADD` instruction copies new files, directories or remote file URLs from `<src>`
-and adds them to the filesystem of the container at the path `<dest>`.  
+and adds them to the filesystem of the container at the path `<dest>`.
 
 Multiple `<src>` resource may be specified but if they are files or
 directories then they must be relative to the source directory that is
@@ -1125,6 +1135,40 @@ corresponding `ARG` instruction in the Dockerfile.
 To use these, simply pass them on the command line using the `--build-arg
 <varname>=<value>` flag.
 
+### Impact on build caching
+
+`ARG` variables are not persisted into the built image as `ENV` variables are.
+However, `ARG` variables do impact the build cache in similar ways. If a
+Dockerfile defines an `ARG` variable whose value is different from a previous
+build, then a "cache miss" occurs upon its first usage, not its declaration.
+For example, consider this Dockerfile:
+
+```
+1 FROM ubuntu
+2 ARG CONT_IMG_VER
+3 RUN echo $CONT_IMG_VER
+```
+
+If you specify `--build-arg CONT_IMG_VER=<value>` on the command line the
+specification on line 2 does not cause a cache miss; line 3 does cause a cache
+miss. The definition on line 2 has no impact on the resulting image. The `RUN`
+on line 3 executes a command and in doing so defines a set of environment
+variables, including `CONT_IMG_VER`. At that point, the `ARG` variable may
+impact the resulting image, so a cache miss occurs.
+
+Consider another example under the same command line:
+
+```
+1 FROM ubuntu
+2 ARG CONT_IMG_VER
+3 ENV CONT_IMG_VER $CONT_IMG_VER
+4 RUN echo $CONT_IMG_VER
+```
+In this example, the cache miss occurs on line 3. The miss happens because
+the variable's value in the `ENV` references the `ARG` variable and that
+variable is changed through the command line. In this example, the `ENV`
+command causes the image to include the value.
+
 ## ONBUILD
 
     ONBUILD [INSTRUCTION]
@@ -1194,7 +1238,7 @@ or a signal name in the format SIGNAME, for instance SIGKILL.
 ## Dockerfile examples
 
 Below you can see some examples of Dockerfile syntax. If you're interested in
-something more realistic, take a look at the list of [Dockerization examples](../examples/).
+something more realistic, take a look at the list of [Dockerization examples](../examples/index.md).
 
 ```
 # Nginx

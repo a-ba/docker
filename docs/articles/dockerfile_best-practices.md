@@ -112,7 +112,7 @@ these checksums. During the cache lookup, the checksum is compared against the
 checksum in the existing images. If anything has changed in the file(s), such
 as the contents and metadata, then the cache is invalidated.
 
-* Aside from the `ADD` and `COPY` commands cache checking will not look at the
+* Aside from the `ADD` and `COPY` commands, cache checking will not look at the
 files in the container to determine a cache match. For example, when processing
 a `RUN apt-get -y update` command the files updated in the container
 will not be examined to determine if a cache hit exists.  In that case just
@@ -212,13 +212,11 @@ recommendations.
         dpkg-sig \
         libcap-dev \
         libsqlite3-dev \
-        lxc=1.0* \
         mercurial \
         reprepro \
         ruby1.9.1 \
         ruby1.9.1-dev \
         s3cmd=1.1.* \
-     && apt-get clean \
      && rm -rf /var/lib/apt/lists/*
 
 The `s3cmd` instructions specifies a version `1.1.0*`. If the image previously
@@ -230,6 +228,9 @@ In addition, cleaning up the apt cache and removing `/var/lib/apt/lists` helps
 keep the image size down. Since the `RUN` statement starts with
 `apt-get update`, the package cache will always be refreshed prior to
 `apt-get install`.
+
+> **Note**: The official Debian and Ubuntu images [automatically run `apt-get clean`](https://github.com/docker/docker/blob/03e2923e42446dbb830c654d0eec323a0b4ef02a/contrib/mkimage/debootstrap#L82-L105),
+> so explicit invocation is not required.
 
 ### CMD
 
@@ -311,7 +312,7 @@ specifically required files change.
 For example:
 
     COPY requirements.txt /tmp/
-    RUN pip install /tmp/requirements.txt
+    RUN pip install --requirement /tmp/requirements.txt
     COPY . /tmp/
 
 Results in fewer cache invalidations for the `RUN` step, than if you put the

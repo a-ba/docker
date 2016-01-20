@@ -2,7 +2,7 @@ package client
 
 import (
 	"errors"
-	"net/url"
+	"io"
 	"os"
 
 	Cli "github.com/docker/docker/cli"
@@ -38,21 +38,12 @@ func (cli *DockerCli) CmdSave(args ...string) error {
 		}
 	}
 
-	sopts := &streamOpts{
-		rawTerminal: true,
-		out:         output,
-	}
-
-	v := url.Values{}
-	for _, arg := range cmd.Args() {
-		v.Add("names", arg)
-	}
-	for _, img := range exclude.GetAll() {
-		v.Add("exclude", img)
-	}
-	if _, err := cli.stream("GET", "/images/get?"+v.Encode(), sopts); err != nil {
+	responseBody, err := cli.client.ImageSave(cmd.Args(), exclude)
+	if err != nil {
 		return err
 	}
+	defer responseBody.Close()
 
-	return nil
+	_, err = io.Copy(output, responseBody)
+	return err
 }

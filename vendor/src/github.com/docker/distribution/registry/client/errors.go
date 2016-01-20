@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/docker/distribution/registry/api/errcode"
-	"github.com/docker/distribution/registry/api/v2"
 )
 
 // UnexpectedHTTPStatusError is returned when an unexpected HTTP status is
@@ -48,11 +47,15 @@ func parseHTTPErrorResponse(r io.Reader) error {
 	return errors
 }
 
-func handleErrorResponse(resp *http.Response) error {
+// HandleErrorResponse returns error parsed from HTTP response for an
+// unsuccessful HTTP response code (in the range 400 - 499 inclusive). An
+// UnexpectedHTTPStatusError returned for response code outside of expected
+// range.
+func HandleErrorResponse(resp *http.Response) error {
 	if resp.StatusCode == 401 {
 		err := parseHTTPErrorResponse(resp.Body)
 		if uErr, ok := err.(*UnexpectedHTTPResponseError); ok {
-			return v2.ErrorCodeUnauthorized.WithDetail(uErr.Response)
+			return errcode.ErrorCodeUnauthorized.WithDetail(uErr.Response)
 		}
 		return err
 	}

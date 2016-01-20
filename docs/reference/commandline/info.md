@@ -15,12 +15,15 @@ parent = "smn_cli"
 
     Display system-wide information
 
-      --help=false        Print usage
+      --help              Print usage
 
 For example:
 
     $ docker -D info
     Containers: 14
+     Running: 3
+     Paused: 1
+     Stopped: 10
     Images: 52
     Server Version: 1.9.0
     Storage Driver: aufs
@@ -30,7 +33,12 @@ For example:
      Dirperm1 Supported: true
     Execution Driver: native-0.2
     Logging Driver: json-file
+    Plugins:
+     Volume: local
+     Network: bridge null host
     Kernel Version: 3.19.0-22-generic
+    OSType: linux
+    Architecture: x86_64
     Operating System: Ubuntu 15.04
     CPUs: 24
     Total Memory: 62.86 GiB
