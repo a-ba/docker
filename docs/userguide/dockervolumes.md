@@ -29,14 +29,15 @@ containers that bypasses the [*Union File System*](../reference/glossary.md#unio
 
 - Volumes are initialized when a container is created. If the container's
   base image contains data at the specified mount point, that existing data is
-  copied into the new volume upon volume initialization.
+  copied into the new volume upon volume initialization. (Note that this does
+  not apply when [mounting a host directory](#mount-a-host-directory-as-a-data-volume).)
 - Data volumes can be shared and reused among containers.
 - Changes to a data volume are made directly.
 - Changes to a data volume will not be included when you update an image.
 - Data volumes persist even if the container itself is deleted.
 
 Data volumes are designed to persist data, independent of the container's life
-cycle. Docker therefore *never* automatically delete volumes when you remove
+cycle. Docker therefore *never* automatically deletes volumes when you remove
 a container, nor will it "garbage collect" volumes that are no longer
 referenced by a container.
 
@@ -55,14 +56,9 @@ This will create a new volume inside a container at `/webapp`.
 > You can also use the `VOLUME` instruction in a `Dockerfile` to add one or
 > more new volumes to any container created from that image.
 
-Docker volumes default to mount in read-write mode, but you can also set it to be mounted read-only.
-
-    $ docker run -d -P --name web -v /opt/webapp:ro training/webapp python app.py
-
-
 ### Locating a volume
 
-You can locate the volume on the host by utilizing the 'docker inspect' command.
+You can locate the volume on the host by utilizing the `docker inspect` command.
 
     $ docker inspect web
 
@@ -77,13 +73,14 @@ volumes. The output should look something similar to the following:
             "Destination": "/webapp",
             "Driver": "local",
             "Mode": "",
-            "RW": true
+            "RW": true,
+            "Propagation": ""
         }
     ]
     ...
 
-You will notice in the above 'Source' is specifying the location on the host and
-'Destination' is specifying the volume location inside the container. `RW` shows
+You will notice in the above `Source` is specifying the location on the host and
+`Destination` is specifying the volume location inside the container. `RW` shows
 if the volume is read/write.
 
 ### Mount a host directory as a data volume
@@ -106,7 +103,7 @@ The `host-dir` can either be an absolute path or a `name` value. If you
 supply an absolute path for the `host-dir`, Docker bind-mounts to the path
 you specify. If you supply a `name`, Docker creates a named volume by that `name`.
 
-A `name` value must start with start with an alphanumeric character,
+A `name` value must start with an alphanumeric character,
 followed by `a-z0-9`, `_` (underscore), `.` (period) or `-` (hyphen).
 An absolute path starts with a `/` (forward slash).
 
@@ -181,7 +178,7 @@ Only the current container can use a private volume.
 The `-v` flag can also be used to mount a single file  - instead of *just*
 directories - from the host machine.
 
-    $ docker run --rm -it -v ~/.bash_history:/.bash_history ubuntu /bin/bash
+    $ docker run --rm -it -v ~/.bash_history:/root/.bash_history ubuntu /bin/bash
 
 This will drop you into a bash shell in a new container, you will have your bash
 history from the host and when you exit the container, the host will have the
@@ -205,30 +202,32 @@ Let's create a new named container with a volume to share.
 While this container doesn't run an application, it reuses the `training/postgres`
 image so that all containers are using layers in common, saving disk space.
 
-    $ docker create -v /dbdata --name dbdata training/postgres /bin/true
+    $ docker create -v /dbdata --name dbstore training/postgres /bin/true
 
 You can then use the `--volumes-from` flag to mount the `/dbdata` volume in another container.
 
-    $ docker run -d --volumes-from dbdata --name db1 training/postgres
+    $ docker run -d --volumes-from dbstore --name db1 training/postgres
 
 And another:
 
-    $ docker run -d --volumes-from dbdata --name db2 training/postgres
+    $ docker run -d --volumes-from dbstore --name db2 training/postgres
 
 In this case, if the `postgres` image contained a directory called `/dbdata`
-then mounting the volumes from the `dbdata` container hides the
+then mounting the volumes from the `dbstore` container hides the
 `/dbdata` files from the `postgres` image. The result is only the files
-from the `dbdata` container are visible.
+from the `dbstore` container are visible.
 
-You can use multiple `--volumes-from` parameters to bring together multiple data
-volumes from multiple containers.
+You can use multiple `--volumes-from` parameters to combine data volumes from
+several containers. To find detailed information about `--volumes-from` see the
+[Mount volumes from container](../reference/commandline/run.md#mount-volumes-from-container-volumes-from)
+in the `run` command reference.
 
 You can also extend the chain by mounting the volume that came from the
-`dbdata` container in yet another container via the `db1` or `db2` containers.
+`dbstore` container in yet another container via the `db1` or `db2` containers.
 
     $ docker run -d --name db3 --volumes-from db1 training/postgres
 
-If you remove containers that mount volumes, including the initial `dbdata`
+If you remove containers that mount volumes, including the initial `dbstore`
 container, or the subsequent containers `db1` and `db2`, the volumes will not
 be deleted.  To delete the volume from disk, you must explicitly call
 `docker rm -v` against the last container with a reference to the volume. This
@@ -238,9 +237,9 @@ allows you to upgrade, or effectively migrate data volumes between containers.
 > providing the `-v` option to delete its volumes. If you remove containers
 > without using the `-v` option, you may end up with "dangling" volumes;
 > volumes that are no longer referenced by a container.
-> Dangling volumes are difficult to get rid of and can take up a large amount
-> of disk space. We're working on improving volume management and you can check
-> progress on this in [pull request #14214](https://github.com/docker/docker/pull/14214)
+> You can use `docker volume ls -f dangling=true` to find dangling volumes,
+> and use `docker volume rm <volume name>` to remove a volume that's
+> no longer needed.
 
 ## Backup, restore, or migrate data volumes
 
@@ -249,10 +248,10 @@ backups, restores or migrations.  We do this by using the
 `--volumes-from` flag to create a new container that mounts that volume,
 like so:
 
-    $ docker run --volumes-from dbdata -v $(pwd):/backup ubuntu tar cvf /backup/backup.tar /dbdata
+    $ docker run --rm --volumes-from dbstore -v $(pwd):/backup ubuntu tar cvf /backup/backup.tar /dbdata
 
 Here we've launched a new container and mounted the volume from the
-`dbdata` container. We've then mounted a local host directory as
+`dbstore` container. We've then mounted a local host directory as
 `/backup`. Finally, we've passed a command that uses `tar` to backup the
 contents of the `dbdata` volume to a `backup.tar` file inside our
 `/backup` directory. When the command completes and the container stops
@@ -261,18 +260,18 @@ we'll be left with a backup of our `dbdata` volume.
 You could then restore it to the same container, or another that you've made
 elsewhere. Create a new container.
 
-    $ docker run -v /dbdata --name dbdata2 ubuntu /bin/bash
+    $ docker run -v /dbdata --name dbstore2 ubuntu /bin/bash
 
 Then un-tar the backup file in the new container's data volume.
 
-    $ docker run --volumes-from dbdata2 -v $(pwd):/backup ubuntu cd /dbdata && tar xvf /backup/backup.tar
+    $ docker run --rm --volumes-from dbstore2 -v $(pwd):/backup ubuntu bash -c "cd /dbdata && tar xvf /backup/backup.tar --strip 1"
 
 You can use the techniques above to automate backup, migration and
 restore testing using your preferred tools.
 
 ## Important tips on using shared volumes
 
-Multiple containers can also share one or more data volumes. However, multiple containers writing to a single shared volume can cause data corruption. Make sure you're applications are designed to write to shared data stores.
+Multiple containers can also share one or more data volumes. However, multiple containers writing to a single shared volume can cause data corruption. Make sure your applications are designed to write to shared data stores.
 
 Data volumes are directly accessible from the Docker host. This means you can read and write to them with normal Linux tools. In most cases you should not do this as it can cause data corruption if your containers and applications are unaware of your direct access.
 

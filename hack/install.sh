@@ -7,12 +7,12 @@ set -e
 #   'wget -qO- https://get.docker.com/ | sh'
 #
 # For test builds (ie. release candidates):
-#   'curl -sSL https://test.docker.com/ | sh'
+#   'curl -fsSL https://test.docker.com/ | sh'
 # or:
 #   'wget -qO- https://test.docker.com/ | sh'
 #
 # For experimental builds:
-#   'curl -sSL https://experimental.docker.com/ | sh'
+#   'curl -fsSL https://experimental.docker.com/ | sh'
 # or:
 #   'wget -qO- https://experimental.docker.com/ | sh'
 #
@@ -53,6 +53,7 @@ echo_docker_as_nonroot() {
 
 # Check if this is a forked Linux distro
 check_forked() {
+
 	# Check for lsb_release command existence, it usually exists in forked distros
 	if command_exists lsb_release; then
 		# Check if the `-u` option is supported
@@ -76,6 +77,20 @@ check_forked() {
 			cat <<-EOF
 			Upstream release is '$lsb_dist' version '$dist_version'.
 			EOF
+		else
+			if [ -r /etc/debian_version ] && [ "$lsb_dist" != "ubuntu" ]; then
+				# We're Debian and don't even know it!
+				lsb_dist=debian
+				dist_version="$(cat /etc/debian_version | sed 's/\/.*//' | sed 's/\..*//')"
+				case "$dist_version" in
+					8|'Kali Linux 2')
+						dist_version="jessie"
+					;;
+					7)
+						dist_version="wheezy"
+					;;
+				esac
+			fi
 		fi
 	fi
 }
@@ -357,7 +372,7 @@ do_install() {
 			set -x
 			$sh_c "apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D"
 			$sh_c "mkdir -p /etc/apt/sources.list.d"
-			$sh_c "echo deb https://apt.dockerproject.org/repo ${lsb_dist}-${dist_version} ${repo} > /etc/apt/sources.list.d/docker.list"
+			$sh_c "echo deb [arch=$(dpkg --print-architecture)] https://apt.dockerproject.org/repo ${lsb_dist}-${dist_version} ${repo} > /etc/apt/sources.list.d/docker.list"
 			$sh_c 'sleep 3; apt-get update; apt-get install -y -q docker-engine'
 			)
 			echo_docker_as_nonroot
@@ -424,7 +439,7 @@ do_install() {
 	  a package for Docker.  Please visit the following URL for more detailed
 	  installation instructions:
 
-	    https://docs.docker.com/en/latest/installation/
+	    https://docs.docker.com/engine/installation/
 
 	EOF
 	exit 1

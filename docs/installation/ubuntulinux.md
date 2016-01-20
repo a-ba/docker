@@ -14,7 +14,6 @@ weight = -6
 Docker is supported on these Ubuntu operating systems:
 
 - Ubuntu Wily 15.10
-- Ubuntu Vivid 15.04
 - Ubuntu Trusty 14.04 (LTS)
 - Ubuntu Precise 12.04 (LTS)
 
@@ -23,7 +22,8 @@ installation mechanisms. Using these packages ensures you get the latest release
 of Docker. If you wish to install using Ubuntu-managed packages, consult your
 Ubuntu documentation.
 
->**Note**: Ubuntu Utopic 14.10 exists in Docker's `apt` repository but it is no longer officially supported.
+>**Note**: Ubuntu Utopic 14.10 and 15.04 exist in Docker's `APT` repository but
+> are no longer officially supported.
 
 ## Prerequisites
 
@@ -41,56 +41,69 @@ display your kernel version:
     $ uname -r
     3.11.0-15-generic
 
->**Note**: If you previously installed Docker using `apt`, make sure you update
-your `apt` sources to the new Docker repository.
+>**Note**: If you previously installed Docker using `APT`, make sure you update
+your `APT` sources to the new Docker repository.
 
 ### Update your apt sources
 
-Docker's `apt` repository contains Docker 1.7.1 and higher. To set `apt` to use
+Docker's `APT` repository contains Docker 1.7.1 and higher. To set `APT` to use
 packages from the new repository:
 
 1. If you haven't already done so, log into your Ubuntu instance as a privileged user.
 
 2. Open a terminal window.
 
-3. Add the new `gpg` key.
+3. Update package information, ensure that APT works with the `https` method, and that CA certificates are installed.
+
+         $ apt-get update
+         $ apt-get install apt-transport-https ca-certificates
+
+4. Add the new `GPG` key.
 
         $ sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
-4. Open the `/etc/apt/sources.list.d/docker.list` file in your favorite editor.
+5. Open the `/etc/apt/sources.list.d/docker.list` file in your favorite editor.
 
     If the file doesn't exist, create it.
 
-5. Remove any existing entries.
+6. Remove any existing entries.
 
-6. Add an entry for your Ubuntu operating system.
+7. Add an entry for your Ubuntu operating system.
 
     The possible entries are:
 
-        # Ubuntu Precise 12.04 (LTS)
-        deb https://apt.dockerproject.org/repo ubuntu-precise main
-        # Ubuntu Trusty 14.04 (LTS)
-        deb https://apt.dockerproject.org/repo ubuntu-trusty main
-        # Ubuntu Vivid 15.04
-        deb https://apt.dockerproject.org/repo ubuntu-vivid main
-        # Ubuntu Wily 15.10
-        deb https://apt.dockerproject.org/repo ubuntu-wily main
+    - On Ubuntu Precise 12.04 (LTS)
 
-7. Save and close the `/etc/apt/sources.list.d/docker.list` file.
+            deb https://apt.dockerproject.org/repo ubuntu-precise main
 
-8. Update the `apt` package index.
+    - On Ubuntu Trusty 14.04 (LTS)
+
+            deb https://apt.dockerproject.org/repo ubuntu-trusty main
+
+    - Ubuntu Wily 15.10
+
+            deb https://apt.dockerproject.org/repo ubuntu-wily main
+
+    > **Note**: Docker does not provide packages for all architectures. To install docker on
+    > a multi-architecture system, add an `[arch=...]` clause to the entry. Refer to the
+    > [Debian Multiarch wiki](https://wiki.debian.org/Multiarch/HOWTO#Setting_up_apt_sources)
+    > for details.
+
+8. Save and close the `/etc/apt/sources.list.d/docker.list` file.
+
+9. Update the `APT` package index.
 
         $ apt-get update
 
-9. Purge the old repo if it exists.
+10. Purge the old repo if it exists.
 
-        $ apt-get purge lxc-docker*
+        $ apt-get purge lxc-docker
 
-10. Verify that `apt` is pulling from the right repository.
+11. Verify that `APT` is pulling from the right repository.
 
         $ apt-cache policy docker-engine
 
-    From now on when you run `apt-get upgrade`, `apt` pulls from the new repository.  
+    From now on when you run `apt-get upgrade`, `APT` pulls from the new repository.
 
 ### Prerequisites by Ubuntu Version
 
@@ -116,6 +129,7 @@ To install the `linux-image-extra` package for your kernel version:
 
 4. Go ahead and install Docker.
 
+If you are installing on Ubuntu 14.04 or 12.04, `apparmor` is required.  You can install it using: `apt-get install apparmor`
 
 #### Ubuntu Precise 12.04 (LTS)
 
@@ -165,16 +179,16 @@ To upgrade your kernel and install the additional packages, do the following:
 
 5. After your system reboots, go ahead and install Docker.
 
-
-
 ## Install
 
-Make sure you have installed the prerequisites for your Ubuntu version. Then,
+Make sure you have installed the prerequisites for your Ubuntu version.
+
+Then,
 install Docker using the following:
 
 1. Log into your Ubuntu installation as a user with `sudo` privileges.
 
-2. Update your `apt` package index.
+2. Update your `APT` package index.
 
         $ sudo apt-get update
 
@@ -216,7 +230,7 @@ makes the ownership of the Unix socket read/writable by the `docker` group.
 
 >**Warning**: The `docker` group is equivalent to the `root` user; For details
 >on how this impacts security in your system, see [*Docker Daemon Attack
->Surface*](../articles/security.md#docker-daemon-attack-surface) for details.
+>Surface*](../security/security.md#docker-daemon-attack-surface) for details.
 
 To create the `docker` group and add your user:
 
@@ -335,6 +349,12 @@ Instead, Docker defaults to using an external nameserver.
 To avoid this warning, you can specify a DNS server for use by Docker
 containers. Or, you can disable `dnsmasq` in NetworkManager. Though, disabling
 `dnsmasq` might make DNS resolution slower on some networks.
+
+The instructions below describe how to configure the Docker daemon
+running on Ubuntu 14.10 or below. Ubuntu 15.04 and above use `systemd`
+as the boot and service manager. Refer to [control and configure Docker
+with systemd](../articles/systemd.md#custom-docker-daemon-options) to
+configure a daemon controlled by `systemd`.
 
 To specify a DNS server for use by Docker:
 

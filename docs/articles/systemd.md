@@ -12,7 +12,7 @@ weight = 7
 # Control and configure Docker with systemd
 
 Many Linux distributions use systemd to start the Docker daemon. This document
-shows a few examples of how to customise Docker's settings.
+shows a few examples of how to customize Docker's settings.
 
 ## Starting the Docker daemon
 
@@ -98,7 +98,7 @@ directory:
 
     [Service]
     ExecStart=
-    ExecStart=/usr/bin/docker daemon -H fd:// --graph /mnt/docker-data --storage-driver btrfs
+    ExecStart=/usr/bin/docker daemon -H fd:// --graph="/mnt/docker-data" --storage-driver=overlay
 
 You can also set other environment variables in this file, for example, the
 `HTTP_PROXY` environment variables described below.
@@ -134,7 +134,7 @@ that adds the `HTTP_PROXY` environment variable:
 If you have internal Docker registries that you need to contact without
 proxying you can specify them via the `NO_PROXY` environment variable:
 
-    Environment="HTTP_PROXY=http://proxy.example.com:80/" "NO_PROXY=localhost,127.0.0.0/8,docker-registry.somecorporation.com"
+    Environment="HTTP_PROXY=http://proxy.example.com:80/" "NO_PROXY=localhost,127.0.0.1,docker-registry.somecorporation.com"
 
 Flush changes:
 

@@ -305,19 +305,22 @@ features and some old features that aren't available.
 
 ```
 $ docker network create --driver bridge isolated_nw
-c5ee82f76de30319c75554a57164c682e7372d2c694fec41e42ac3b77e570f6b
+1196a4c5af43a21ae38ef34515b6af19236a3fc48122cf585e3f3054d509679b
 
 $ docker network inspect isolated_nw
 [
     {
         "Name": "isolated_nw",
-        "Id": "c5ee82f76de30319c75554a57164c682e7372d2c694fec41e42ac3b77e570f6b",
+        "Id": "1196a4c5af43a21ae38ef34515b6af19236a3fc48122cf585e3f3054d509679b",
         "Scope": "local",
         "Driver": "bridge",
         "IPAM": {
             "Driver": "default",
             "Config": [
-                {}
+                {
+                    "Subnet": "172.21.0.0/16",
+                    "Gateway": "172.21.0.1/16"
+                }
             ]
         },
         "Containers": {},
@@ -338,13 +341,13 @@ After you create the network, you can launch containers on it using  the `docker
 
 ```
 $ docker run --net=isolated_nw -itd --name=container3 busybox
-885b7b4f792bae534416c95caa35ba272f201fa181e18e59beba0c80d7d77c1d
+8c1a0a5be480921d669a073393ade66a3fc49933f08bcc5515b37b8144f6d47c
 
 $ docker network inspect isolated_nw
 [
     {
         "Name": "isolated_nw",
-        "Id": "c5ee82f76de30319c75554a57164c682e7372d2c694fec41e42ac3b77e570f6b",
+        "Id": "1196a4c5af43a21ae38ef34515b6af19236a3fc48122cf585e3f3054d509679b",
         "Scope": "local",
         "Driver": "bridge",
         "IPAM": {
@@ -354,8 +357,8 @@ $ docker network inspect isolated_nw
             ]
         },
         "Containers": {
-            "885b7b4f792bae534416c95caa35ba272f201fa181e18e59beba0c80d7d77c1d": {
-                "EndpointID": "514e1b419074397ea92bcfaa6698d17feb62db49d1320a27393b853ec65319c3",
+            "8c1a0a5be480921d669a073393ade66a3fc49933f08bcc5515b37b8144f6d47c": {
+                "EndpointID": "93b2db4a9b9a997beb912d28bcfc117f7b0eb924ff91d48cfa251d473e6a9b08",
                 "MacAddress": "02:42:ac:15:00:02",
                 "IPv4Address": "172.21.0.2/16",
                 "IPv6Address": ""
@@ -375,7 +378,7 @@ networks.
 
 Within a user-defined bridge network, linking is not supported. You can
 expose and publish container ports on containers in this network. This is useful
-if you want make a portion of the `bridge` network available to an outside
+if you want to make a portion of the `bridge` network available to an outside
 network.
 
 ![Bridge network](images/network_access.png)
@@ -392,7 +395,7 @@ out-of-the-box. This support is accomplished with the help of `libnetwork`, a
 built-in VXLAN-based overlay network driver, and Docker's `libkv` library.
 
 The `overlay` network requires a valid key-value store service. Currently,
-Docker's supports Consul, Etcd, and ZooKeeper (Distributed store). Before
+Docker's `libkv` supports Consul, Etcd, and ZooKeeper (Distributed store). Before
 creating a network you must install and configure your chosen key-value store
 service. The Docker hosts that you intend to network and the service must be
 able to communicate.
@@ -420,14 +423,28 @@ form them into a swarm which includes a discovery service as well.
 To create an overlay network, you configure options on  the `daemon` on each
 Docker Engine for use with `overlay` network. There are two options to set:
 
-| Option                                        | Description                                                 |
-|-----------------------------------------------|-------------------------------------------------------------|
-| `--cluster-store=PROVIDER://URL`              | Describes the location of the KV service.                   |
-| `--cluster-advertise=HOST_IP|HOST_IFACE:PORT` | The IP address or interface of the HOST used for clustering |
+<table>
+    <thead>
+    <tr>
+        <th>Option</th>
+        <th>Description</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td><pre>--cluster-store=PROVIDER://URL</pre></td>
+        <td>Describes the location of the KV service.</td>
+    </tr>
+    <tr>
+        <td><pre>--cluster-advertise=HOST_IP|HOST_IFACE:PORT</pre></td>
+        <td>The IP address or interface of the HOST used for clustering.</td>
+    </tr>
+    </tbody>
+</table>
 
 Create an `overlay` network on one of the machines in the Swarm.
 
-        $ docker network create --driver overlay my-multi-host-network
+    $ docker network create --driver overlay my-multi-host-network
 
 This results in a single network spanning multiple hosts. An `overlay` network
 provides complete isolation for the containers.
@@ -436,7 +453,7 @@ provides complete isolation for the containers.
 
 Then, on each host, launch containers making sure to specify the network name.
 
-        $ docker run -itd --net=my-multi-host-network busybox
+    $ docker run -itd --net=my-multi-host-network busybox
 
 Once connected, each container has access to all the containers in the network
 regardless of which Docker host the container was launched on.
@@ -465,7 +482,7 @@ built-in network drivers. For example:
 You can inspect it, add containers too and from it, and so forth. Of course,
 different plugins may make use of different technologies or frameworks. Custom
 networks can include features not present in Docker's default networks. For more
-information on writing plugins, see [Extending Docker](../../extend) and
+information on writing plugins, see [Extending Docker](../../extend/index.md) and
 [Writing a network driver plugin](../../extend/plugins_network.md).
 
 ## Legacy links

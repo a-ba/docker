@@ -1,10 +1,11 @@
 package daemon
 
 import (
+	"strings"
+
 	"github.com/Sirupsen/logrus"
 	derr "github.com/docker/docker/errors"
 	"github.com/docker/libnetwork"
-	"strings"
 )
 
 // ContainerRename changes the name of a container, using the oldName
@@ -12,17 +13,15 @@ import (
 // reserved.
 func (daemon *Daemon) ContainerRename(oldName, newName string) error {
 	var (
-		err       error
-		sid       string
-		sb        libnetwork.Sandbox
-		container *Container
+		sid string
+		sb  libnetwork.Sandbox
 	)
 
 	if oldName == "" || newName == "" {
 		return derr.ErrorCodeEmptyRename
 	}
 
-	container, err = daemon.Get(oldName)
+	container, err := daemon.GetContainer(oldName)
 	if err != nil {
 		return err
 	}
@@ -41,27 +40,24 @@ func (daemon *Daemon) ContainerRename(oldName, newName string) error {
 		if err != nil {
 			container.Name = oldName
 			daemon.reserveName(container.ID, oldName)
-			daemon.containerGraphDB.Delete(newName)
+			daemon.releaseName(newName)
 		}
 	}()
 
-	if err = daemon.containerGraphDB.Delete(oldName); err != nil {
-		return derr.ErrorCodeRenameDelete.WithArgs(oldName, err)
-	}
-
-	if err = container.toDisk(); err != nil {
+	daemon.releaseName(oldName)
+	if err = container.ToDisk(); err != nil {
 		return err
 	}
 
 	if !container.Running {
-		container.logEvent("rename")
+		daemon.LogContainerEvent(container, "rename")
 		return nil
 	}
 
 	defer func() {
 		if err != nil {
 			container.Name = oldName
-			if e := container.toDisk(); e != nil {
+			if e := container.ToDisk(); e != nil {
 				logrus.Errorf("%s: Failed in writing to Disk on rename failure: %v", container.ID, e)
 			}
 		}
@@ -77,7 +73,6 @@ func (daemon *Daemon) ContainerRename(oldName, newName string) error {
 	if err != nil {
 		return err
 	}
-
-	container.logEvent("rename")
+	daemon.LogContainerEvent(container, "rename")
 	return nil
 }

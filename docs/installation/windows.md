@@ -25,13 +25,14 @@ You install Docker using Docker Toolbox. Docker Toolbox includes the following D
 Because the Docker daemon uses Linux-specific kernel features, you can't run
 Docker natively in Windows. Instead, you must use `docker-machine` to create and attach to a Docker VM on your machine. This VM hosts Docker for you on your Windows system.
 
-The Docker VM is lightweight Linux virtual machine made specifically to run the
-Docker daemon on Windows. The VirtualBox VM runs completely from RAM, is a
-small ~24MB download, and boots in approximately 5s.
+The virtual machine runs a lightweight Linux distribution made specifically to
+run the Docker daemon. The VirtualBox VM runs completely from RAM, is a small
+~24MB download, and boots in approximately 5s.
 
 ## Requirements
 
-Your machine must be running Windows 7, 8/8.1 or newer to run Docker. Windows 10 is not currently supported. To find out what version of Windows you have:
+To run Docker, your machine must have a 64-bit operating system running Windows 7 or higher. Additionally, you must make sure that virtualization is enabled on your machine. 
+To verify your machine meets these requirements, do the following:
 
 1. Right click the Windows Start Menu and choose **System**.
 
@@ -43,9 +44,9 @@ Your machine must be running Windows 7, 8/8.1 or newer to run Docker. Windows 10
 2. Make sure your CPU supports [virtualization technology](https://en.wikipedia.org/wiki/X86_virtualization)
 and virtualization support is enabled in BIOS and recognized by Windows.
 
-    #### For Windows 8 or 8.1
+    #### For Windows 8, 8.1 or 10
 
-	  Choose **Start > Task Manager** and navigate to the **Performance** tab.
+	  Choose **Start > Task Manager**. On Windows 10, click more details. Navigate to the **Performance** tab.
 	  Under **CPU** you should see the following:
 
       ![Release page](images/virtualization.png)
@@ -59,7 +60,12 @@ and virtualization support is enabled in BIOS and recognized by Windows.
 	  target="_blank"> Microsoft® Hardware-Assisted Virtualization Detection
 	  Tool</a> and follow the on-screen instructions.
 
+3. Verify your Windows OS is 64-bit (x64)
 
+   How you do this verification depends on your Windows version.  For details, see the Windows 
+    article [How to determine whether a computer is running a 32-bit version or 64-bit version 
+    of the Windows operating system](https://support.microsoft.com/en-us/kb/827218).
+    
 > **Note**: If you have Docker hosts running and you don't wish to do a Docker Toolbox
 installation, you can install the `docker.exe` using the *unofficial* Windows package
 manager Chocolately. For information on how to do this, see [Docker package on
@@ -346,9 +352,9 @@ this same directory. The private key needs to be converted into the format PuTTY
 uses. You can do this with
 [puttygen](http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html):
 
-1. Open `puttygen.exe` and load ("File"->"Load" menu) the private key from
+1. Open `puttygen.exe` and load ("File"->"Load" menu) the private key from (you may need to change to the `All Files (*.*)` filter)
 
-        %USERPROFILE%\.docker\machine\machines\<name_of_your_machine>
+        %USERPROFILE%\.docker\machine\machines\<name_of_your_machine>\id_rsa
 
 2. Click "Save Private Key".
 
@@ -362,6 +368,6 @@ delete that file yourself.
 
 ## Learn more
 
-You can continue with the [Docker User Guide](../userguide). If you are
+You can continue with the [Docker User Guide](../userguide/index.md). If you are
 interested in using the Kitematic GUI, see the [Kitematic user
 guide](https://docs.docker.com/kitematic/userguide/).

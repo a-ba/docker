@@ -4,16 +4,30 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/versions/v1p20"
+	"github.com/docker/docker/container"
+	"github.com/docker/docker/daemon/exec"
 	"github.com/docker/docker/daemon/network"
+	"github.com/docker/docker/pkg/version"
+	"github.com/docker/engine-api/types"
+	networktypes "github.com/docker/engine-api/types/network"
+	"github.com/docker/engine-api/types/versions/v1p20"
 )
 
 // ContainerInspect returns low-level information about a
 // container. Returns an error if the container cannot be found, or if
 // there is an error getting the data.
-func (daemon *Daemon) ContainerInspect(name string, size bool) (*types.ContainerJSON, error) {
-	container, err := daemon.Get(name)
+func (daemon *Daemon) ContainerInspect(name string, size bool, version version.Version) (interface{}, error) {
+	switch {
+	case version.LessThan("1.20"):
+		return daemon.containerInspectPre120(name)
+	case version.Equal("1.20"):
+		return daemon.containerInspect120(name)
+	}
+	return daemon.containerInspectCurrent(name, size)
+}
+
+func (daemon *Daemon) containerInspectCurrent(name string, size bool) (*types.ContainerJSON, error) {
+	container, err := daemon.GetContainer(name)
 	if err != nil {
 		return nil, err
 	}
@@ -43,12 +57,17 @@ func (daemon *Daemon) ContainerInspect(name string, size bool) (*types.Container
 		Networks:               container.NetworkSettings.Networks,
 	}
 
-	return &types.ContainerJSON{base, mountPoints, container.Config, networkSettings}, nil
+	return &types.ContainerJSON{
+		ContainerJSONBase: base,
+		Mounts:            mountPoints,
+		Config:            container.Config,
+		NetworkSettings:   networkSettings,
+	}, nil
 }
 
-// ContainerInspect120 serializes the master version of a container into a json type.
-func (daemon *Daemon) ContainerInspect120(name string) (*v1p20.ContainerJSON, error) {
-	container, err := daemon.Get(name)
+// containerInspect120 serializes the master version of a container into a json type.
+func (daemon *Daemon) containerInspect120(name string) (*v1p20.ContainerJSON, error) {
+	container, err := daemon.GetContainer(name)
 	if err != nil {
 		return nil, err
 	}
@@ -63,26 +82,32 @@ func (daemon *Daemon) ContainerInspect120(name string) (*v1p20.ContainerJSON, er
 
 	mountPoints := addMountPoints(container)
 	config := &v1p20.ContainerConfig{
-		container.Config,
-		container.Config.MacAddress,
-		container.Config.NetworkDisabled,
-		container.Config.ExposedPorts,
-		container.hostConfig.VolumeDriver,
+		Config:          container.Config,
+		MacAddress:      container.Config.MacAddress,
+		NetworkDisabled: container.Config.NetworkDisabled,
+		ExposedPorts:    container.Config.ExposedPorts,
+		VolumeDriver:    container.HostConfig.VolumeDriver,
 	}
 	networkSettings := daemon.getBackwardsCompatibleNetworkSettings(container.NetworkSettings)
 
-	return &v1p20.ContainerJSON{base, mountPoints, config, networkSettings}, nil
+	return &v1p20.ContainerJSON{
+		ContainerJSONBase: base,
+		Mounts:            mountPoints,
+		Config:            config,
+		NetworkSettings:   networkSettings,
+	}, nil
 }
 
-func (daemon *Daemon) getInspectData(container *Container, size bool) (*types.ContainerJSONBase, error) {
+func (daemon *Daemon) getInspectData(container *container.Container, size bool) (*types.ContainerJSONBase, error) {
 	// make a copy to play with
-	hostConfig := *container.hostConfig
+	hostConfig := *container.HostConfig
 
-	if children, err := daemon.children(container.Name); err == nil {
-		for linkAlias, child := range children {
-			hostConfig.Links = append(hostConfig.Links, fmt.Sprintf("%s:%s", child.Name, linkAlias))
-		}
+	children := daemon.children(container)
+	hostConfig.Links = nil // do not expose the internal structure
+	for linkAlias, child := range children {
+		hostConfig.Links = append(hostConfig.Links, fmt.Sprintf("%s:%s", child.Name, linkAlias))
 	}
+
 	// we need this trick to preserve empty log driver, so
 	// container will use daemon defaults even if daemon change them
 	if hostConfig.LogConfig.Type == "" {
@@ -113,15 +138,14 @@ func (daemon *Daemon) getInspectData(container *Container, size bool) (*types.Co
 		Path:         container.Path,
 		Args:         container.Args,
 		State:        containerState,
-		Image:        container.ImageID,
+		Image:        container.ImageID.String(),
 		LogPath:      container.LogPath,
 		Name:         container.Name,
 		RestartCount: container.RestartCount,
 		Driver:       container.Driver,
-		ExecDriver:   container.ExecDriver,
 		MountLabel:   container.MountLabel,
 		ProcessLabel: container.ProcessLabel,
-		ExecIDs:      container.getExecIDs(),
+		ExecIDs:      container.GetExecIDs(),
 		HostConfig:   &hostConfig,
 	}
 
@@ -130,7 +154,7 @@ func (daemon *Daemon) getInspectData(container *Container, size bool) (*types.Co
 		sizeRootFs int64
 	)
 	if size {
-		sizeRw, sizeRootFs = container.getSize()
+		sizeRw, sizeRootFs = daemon.getSize(container)
 		contJSONBase.SizeRw = &sizeRw
 		contJSONBase.SizeRootFs = &sizeRootFs
 	}
@@ -139,7 +163,8 @@ func (daemon *Daemon) getInspectData(container *Container, size bool) (*types.Co
 	contJSONBase = setPlatformSpecificContainerFields(container, contJSONBase)
 
 	contJSONBase.GraphDriver.Name = container.Driver
-	graphDriverData, err := daemon.driver.GetMetadata(container.ID)
+
+	graphDriverData, err := container.RWLayer.Metadata()
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +175,7 @@ func (daemon *Daemon) getInspectData(container *Container, size bool) (*types.Co
 
 // ContainerExecInspect returns low-level information about the exec
 // command. An error is returned if the exec cannot be found.
-func (daemon *Daemon) ContainerExecInspect(id string) (*ExecConfig, error) {
+func (daemon *Daemon) ContainerExecInspect(id string) (*exec.Config, error) {
 	eConfig, err := daemon.getExecConfig(id)
 	if err != nil {
 		return nil, err
@@ -189,7 +214,7 @@ func (daemon *Daemon) getBackwardsCompatibleNetworkSettings(settings *network.Se
 
 // getDefaultNetworkSettings creates the deprecated structure that holds the information
 // about the bridge network for a container.
-func (daemon *Daemon) getDefaultNetworkSettings(networks map[string]*network.EndpointSettings) types.DefaultNetworkSettings {
+func (daemon *Daemon) getDefaultNetworkSettings(networks map[string]*networktypes.EndpointSettings) types.DefaultNetworkSettings {
 	var settings types.DefaultNetworkSettings
 
 	if defaultNetwork, ok := networks["bridge"]; ok {

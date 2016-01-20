@@ -31,7 +31,7 @@ func init() {
 	graphdriver.Register("zfs", Init)
 }
 
-// Logger returns a zfs logger implmentation.
+// Logger returns a zfs logger implementation.
 type Logger struct{}
 
 // Log wraps log message from ZFS driver with a prefix '[zfs]'.
@@ -241,7 +241,7 @@ func (d *Driver) mountPath(id string) string {
 }
 
 // Create prepares the dataset and filesystem for the ZFS driver for the given id under the parent.
-func (d *Driver) Create(id string, parent string) error {
+func (d *Driver) Create(id string, parent string, mountLabel string) error {
 	err := d.create(id, parent)
 	if err == nil {
 		return nil
