@@ -18,7 +18,7 @@ import (
 	"github.com/docker/docker/reference"
 )
 
-func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer) error {
+func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer, printExcludes bool) error {
 	tmpDir, err := ioutil.TempDir("", "docker-import-")
 	if err != nil {
 		return err
@@ -36,6 +36,9 @@ func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer) error {
 	manifestFile, err := os.Open(manifestPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			if printExcludes {
+				return fmt.Errorf("--print-excludes not supported with legacy archives")
+			}
 			return l.legacyLoad(tmpDir, outStream)
 		}
 		return manifestFile.Close()
@@ -46,6 +49,8 @@ func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer) error {
 	if err := json.NewDecoder(manifestFile).Decode(&manifest); err != nil {
 		return err
 	}
+
+	haveLayer := make(map[string]struct{})
 
 	for _, m := range manifest {
 		configPath, err := safePath(tmpDir, m.Config)
@@ -66,6 +71,21 @@ func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer) error {
 
 		if expected, actual := len(m.Layers), len(img.RootFS.DiffIDs); expected != actual {
 			return fmt.Errorf("invalid manifest, layers length mismatch: expected %q, got %q", expected, actual)
+		}
+
+		if printExcludes {
+			// output the ChainID of the images we already have
+			for _, diffID := range img.RootFS.DiffIDs {
+				r := rootFS
+				r.Append(diffID)
+				chainID := r.ChainID()
+				_, err := l.ls.Get(chainID)
+				if err == nil {
+					haveLayer[chainID.String()] = struct{}{}
+				}
+				rootFS.Append(diffID)
+			}
+			continue
 		}
 
 		for i, diffID := range img.RootFS.DiffIDs {
@@ -106,6 +126,10 @@ func (l *tarexporter) Load(inTar io.ReadCloser, outStream io.Writer) error {
 			l.setLoadedTag(ref, imgID, outStream)
 		}
 
+	}
+
+	for chainID := range haveLayer {
+		fmt.Fprintf(outStream, "%s\n", chainID)
 	}
 
 	return nil

@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/docker/distribution/digest"
@@ -26,8 +28,8 @@ type saveSession struct {
 	*tarexporter
 	outDir      string
 	images      map[image.ID]*imageDescriptor
-	excludes    map[image.ID]*imageDescriptor
 	savedLayers map[string]struct{}
+	excludedLayers map[string]bool
 }
 
 func (l *tarexporter) Save(names []string, outStream io.Writer, exclude []string) error {
@@ -36,12 +38,17 @@ func (l *tarexporter) Save(names []string, outStream io.Writer, exclude []string
 		return err
 	}
 
-	excludes, err := l.parseNames(names)
-	if err != nil {
-		return err
+	regExclude := regexp.MustCompile(`\A(?:all|(?:sha256:)?[0-9a-fA-F]{64})\z`)
+	excludedLayers := make(map[string]bool)
+	for _, layer := range exclude {
+		if regExclude.MatchString(layer) {
+			excludedLayers[strings.ToLower(layer)] = true;
+		} else {
+			return fmt.Errorf("invalid exclude string: %#v (must be a valid layer id or 'all')", layer)
+		}
 	}
 
-	return (&saveSession{tarexporter: l, images: images, excludes:excludes}).save(outStream)
+	return (&saveSession{tarexporter: l, images: images, excludedLayers:excludedLayers}).save(outStream)
 }
 
 func (l *tarexporter) parseNames(names []string) (map[image.ID]*imageDescriptor, error) {
@@ -249,6 +256,11 @@ func (s *saveSession) saveImage(id image.ID) error {
 
 func (s *saveSession) saveLayer(id layer.ChainID, legacyImg image.V1Image, createdTime time.Time) error {
 	if _, exists := s.savedLayers[legacyImg.ID]; exists {
+		return nil
+	}
+
+	// break if the client excluded this layer
+	if s.excludedLayers["all"] || s.excludedLayers[id.String()] || s.excludedLayers[legacyImg.ID] {
 		return nil
 	}
 

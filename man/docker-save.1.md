@@ -19,7 +19,7 @@ Stream to a file instead of STDOUT by using **-o**.
 
 # OPTIONS
 **-e**, **--exclude**=[]
-   Images not to be included in the archive
+   Layers not to be included in the archive (or 'all' to exclude all layers, thus save only the metadata)
 
 **--help**
   Print usage statement

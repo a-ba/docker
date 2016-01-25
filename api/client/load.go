@@ -17,6 +17,7 @@ import (
 func (cli *DockerCli) CmdLoad(args ...string) error {
 	cmd := Cli.Subcmd("load", nil, Cli.DockerCommands["load"].Description, true)
 	infile := cmd.String([]string{"i", "-input"}, "", "Read from a tar archive file, instead of STDIN")
+	printExcludes := cmd.Bool([]string{"-print-excludes"}, false, "Do not import anything, but display the list of layers already present on this daemon (to be fed to 'docker save --exclude')")
 	cmd.Require(flag.Exact, 0)
 	cmd.ParseFlags(args, true)
 
@@ -30,7 +31,7 @@ func (cli *DockerCli) CmdLoad(args ...string) error {
 		input = file
 	}
 
-	response, err := cli.client.ImageLoad(input)
+	response, err := cli.client.ImageLoad(input, *printExcludes)
 	if err != nil {
 		return err
 	}

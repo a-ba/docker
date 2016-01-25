@@ -264,7 +264,8 @@ func (s *router) getImagesGet(ctx context.Context, w http.ResponseWriter, r *htt
 }
 
 func (s *router) postImagesLoad(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
-	return s.daemon.LoadImage(r.Body, w)
+	printExcludes := httputils.BoolValue(r, "printExcludes")
+	return s.daemon.LoadImage(r.Body, w, printExcludes)
 }
 
 func (s *router) deleteImages(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string) error {

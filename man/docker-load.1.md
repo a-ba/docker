@@ -8,6 +8,7 @@ docker-load - Load an image from a tar archive or STDIN
 **docker load**
 [**--help**]
 [**-i**|**--input**[=*INPUT*]]
+[**--print-excludes**]
 
 
 # DESCRIPTION
@@ -21,6 +22,9 @@ Restores both images and tags.
 
 **-i**, **--input**=""
    Read from a tar archive file, instead of STDIN. The tarball may be compressed with gzip, bzip, or xz.
+
+**--print-excludes**
+   Do not import anything, but display the list of layers already present on this daemon (to be fed to 'docker save --exclude').
 
 # EXAMPLES
 

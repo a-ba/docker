@@ -19,7 +19,7 @@ func (cli *DockerCli) CmdSave(args ...string) error {
 	cmd := Cli.Subcmd("save", []string{"IMAGE [IMAGE...]"}, Cli.DockerCommands["save"].Description+" (streamed to STDOUT by default)", true)
 	outfile := cmd.String([]string{"o", "-output"}, "", "Write to a file, instead of STDOUT")
 	exclude := opts.NewListOpts(nil)
-	cmd.Var(&exclude, []string{"e", "-exclude"}, "Images not to be included in the archive")
+	cmd.Var(&exclude, []string{"e", "-exclude"}, "Layers not to be included in the archive (or 'all' to exclude all layers, thus save only the metadata)")
 	cmd.Require(flag.Min, 1)
 
 	cmd.ParseFlags(args, true)
