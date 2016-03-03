@@ -5,6 +5,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/Sirupsen/logrus"
 )
 
 // Canonical base role names
@@ -109,10 +111,7 @@ func NewRole(name string, threshold int, keyIDs, paths, pathHashPrefixes []strin
 	}
 	if IsDelegation(name) {
 		if len(paths) == 0 && len(pathHashPrefixes) == 0 {
-			return nil, ErrInvalidRole{
-				Role:   name,
-				Reason: "roles with no Paths and no PathHashPrefixes will never be able to publish content",
-			}
+			logrus.Debugf("role %s with no Paths and no PathHashPrefixes will never be able to publish content until one or more are added", name)
 		}
 	}
 	if threshold < 1 {
@@ -245,4 +244,41 @@ func subtractStrSlices(orig, remove []string) []string {
 		}
 	}
 	return keep
+}
+
+// Restrict restricts the paths and path hash prefixes for the passed in delegation role,
+// returning a copy of the role with validated paths as if it was a direct child
+func Restrict(parent, child Role) (*Role, error) {
+	if path.Dir(child.Name) != parent.Name {
+		return nil, fmt.Errorf("%s is not a parent of %s", parent.Name, child.Name)
+	}
+	return &Role{
+		RootRole: child.RootRole,
+		Name:     child.Name,
+		Paths:    RestrictDelegationPathPrefixes(parent.Paths, child.Paths),
+	}, nil
+}
+
+// RestrictDelegationPathPrefixes returns the list of valid delegationPaths that are prefixed by parentPaths
+func RestrictDelegationPathPrefixes(parentPaths, delegationPaths []string) []string {
+	validPaths := []string{}
+	if len(delegationPaths) == 0 {
+		return validPaths
+	}
+
+	// Validate each individual delegation path
+	for _, delgPath := range delegationPaths {
+		isPrefixed := false
+		for _, parentPath := range parentPaths {
+			if strings.HasPrefix(delgPath, parentPath) {
+				isPrefixed = true
+				break
+			}
+		}
+		// If the delegation path did not match prefix against any parent path, it is not valid
+		if isPrefixed {
+			validPaths = append(validPaths, delgPath)
+		}
+	}
+	return validPaths
 }
