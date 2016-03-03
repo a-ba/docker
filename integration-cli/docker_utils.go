@@ -1704,3 +1704,36 @@ func getInspectBody(c *check.C, version, id string) []byte {
 	c.Assert(status, check.Equals, http.StatusOK)
 	return body
 }
+
+// Run a long running idle task in a background container using the
+// system-specific default image and command.
+func runSleepingContainer(c *check.C, extraArgs ...string) (string, int) {
+	return runSleepingContainerInImage(c, defaultSleepImage, extraArgs...)
+}
+
+// Run a long running idle task in a background container using the specified
+// image and the system-specific command.
+func runSleepingContainerInImage(c *check.C, image string, extraArgs ...string) (string, int) {
+	args := []string{"run", "-d"}
+	args = append(args, extraArgs...)
+	args = append(args, image)
+	args = append(args, defaultSleepCommand...)
+	return dockerCmd(c, args...)
+}
+
+func getRootUIDGID() (int, int, error) {
+	uidgid := strings.Split(filepath.Base(dockerBasePath), ".")
+	if len(uidgid) == 1 {
+		//user namespace remapping is not turned on; return 0
+		return 0, 0, nil
+	}
+	uid, err := strconv.Atoi(uidgid[0])
+	if err != nil {
+		return 0, 0, err
+	}
+	gid, err := strconv.Atoi(uidgid[1])
+	if err != nil {
+		return 0, 0, err
+	}
+	return uid, gid, nil
+}

@@ -22,6 +22,7 @@ import (
 	"github.com/docker/docker/pkg/mount"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/go-connections/nat"
+	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/resolvconf"
 	"github.com/go-check/check"
 )
@@ -1258,13 +1259,13 @@ func (s *DockerSuite) TestRunDnsOptionsBasedOnHostResolvConf(c *check.C) {
 		c.Fatalf("/etc/resolv.conf does not exist")
 	}
 
-	hostNamservers := resolvconf.GetNameservers(origResolvConf)
+	hostNamservers := resolvconf.GetNameservers(origResolvConf, netutils.IP)
 	hostSearch := resolvconf.GetSearchDomains(origResolvConf)
 
 	var out string
 	out, _ = dockerCmd(c, "run", "--dns=127.0.0.1", "busybox", "cat", "/etc/resolv.conf")
 
-	if actualNameservers := resolvconf.GetNameservers([]byte(out)); string(actualNameservers[0]) != "127.0.0.1" {
+	if actualNameservers := resolvconf.GetNameservers([]byte(out), netutils.IP); string(actualNameservers[0]) != "127.0.0.1" {
 		c.Fatalf("expected '127.0.0.1', but says: %q", string(actualNameservers[0]))
 	}
 
@@ -1280,7 +1281,7 @@ func (s *DockerSuite) TestRunDnsOptionsBasedOnHostResolvConf(c *check.C) {
 
 	out, _ = dockerCmd(c, "run", "--dns-search=mydomain", "busybox", "cat", "/etc/resolv.conf")
 
-	actualNameservers := resolvconf.GetNameservers([]byte(out))
+	actualNameservers := resolvconf.GetNameservers([]byte(out), netutils.IP)
 	if len(actualNameservers) != len(hostNamservers) {
 		c.Fatalf("expected %q nameserver(s), but it has: %q", len(hostNamservers), len(actualNameservers))
 	}
@@ -1311,11 +1312,11 @@ func (s *DockerSuite) TestRunDnsOptionsBasedOnHostResolvConf(c *check.C) {
 		c.Fatalf("/etc/resolv.conf does not exist")
 	}
 
-	hostNamservers = resolvconf.GetNameservers(resolvConf)
+	hostNamservers = resolvconf.GetNameservers(resolvConf, netutils.IP)
 	hostSearch = resolvconf.GetSearchDomains(resolvConf)
 
 	out, _ = dockerCmd(c, "run", "busybox", "cat", "/etc/resolv.conf")
-	if actualNameservers = resolvconf.GetNameservers([]byte(out)); string(actualNameservers[0]) != "12.34.56.78" || len(actualNameservers) != 1 {
+	if actualNameservers = resolvconf.GetNameservers([]byte(out), netutils.IP); string(actualNameservers[0]) != "12.34.56.78" || len(actualNameservers) != 1 {
 		c.Fatalf("expected '12.34.56.78', but has: %v", actualNameservers)
 	}
 
@@ -2364,7 +2365,7 @@ func (s *DockerSuite) TestRunModeIpcContainer(c *check.C) {
 	// Not applicable on Windows as uses Unix-specific capabilities
 	testRequires(c, SameHostDaemon, DaemonIsLinux, NotUserNamespace)
 
-	out, _ := dockerCmd(c, "run", "-d", "busybox", "sh", "-c", "echo -n test > /dev/shm/test && top")
+	out, _ := dockerCmd(c, "run", "-d", "busybox", "sh", "-c", "echo -n test > /dev/shm/test && touch /dev/mqueue/toto && top")
 
 	id := strings.TrimSpace(out)
 	state, err := inspectField(id, "State.Running")
@@ -2389,6 +2390,18 @@ func (s *DockerSuite) TestRunModeIpcContainer(c *check.C) {
 	catOutput, _ := dockerCmd(c, "run", fmt.Sprintf("--ipc=container:%s", id), "busybox", "cat", "/dev/shm/test")
 	if catOutput != "test" {
 		c.Fatalf("Output of /dev/shm/test expected test but found: %s", catOutput)
+	}
+
+	// check that /dev/mqueue is actually of mqueue type
+	grepOutput, _ := dockerCmd(c, "run", fmt.Sprintf("--ipc=container:%s", id), "busybox", "grep", "/dev/mqueue", "/proc/mounts")
+	if !strings.HasPrefix(grepOutput, "mqueue /dev/mqueue mqueue rw") {
+		c.Fatalf("Output of 'grep /proc/mounts' expected 'mqueue /dev/mqueue mqueue rw' but found: %s", grepOutput)
+	}
+
+	lsOutput, _ := dockerCmd(c, "run", fmt.Sprintf("--ipc=container:%s", id), "busybox", "ls", "/dev/mqueue")
+	lsOutput = strings.Trim(lsOutput, "\n")
+	if lsOutput != "toto" {
+		c.Fatalf("Output of 'ls /dev/mqueue' expected 'toto' but found: %s", lsOutput)
 	}
 }
 
@@ -2416,9 +2429,11 @@ func (s *DockerSuite) TestRunModeIpcContainerNotRunning(c *check.C) {
 
 func (s *DockerSuite) TestRunMountShmMqueueFromHost(c *check.C) {
 	// Not applicable on Windows as uses Unix-specific capabilities
-	testRequires(c, SameHostDaemon, DaemonIsLinux)
+	testRequires(c, SameHostDaemon, DaemonIsLinux, NotUserNamespace)
 
-	dockerCmd(c, "run", "-d", "--name", "shmfromhost", "-v", "/dev/shm:/dev/shm", "busybox", "sh", "-c", "echo -n test > /dev/shm/test && top")
+	dockerCmd(c, "run", "-d", "--name", "shmfromhost", "-v", "/dev/shm:/dev/shm", "-v", "/dev/mqueue:/dev/mqueue", "busybox", "sh", "-c", "echo -n test > /dev/shm/test && touch /dev/mqueue/toto && top")
+	defer os.Remove("/dev/mqueue/toto")
+	defer os.Remove("/dev/shm/test")
 	volPath, err := inspectMountSourceField("shmfromhost", "/dev/shm")
 	c.Assert(err, check.IsNil)
 	if volPath != "/dev/shm" {
@@ -2428,6 +2443,11 @@ func (s *DockerSuite) TestRunMountShmMqueueFromHost(c *check.C) {
 	out, _ := dockerCmd(c, "run", "--name", "ipchost", "--ipc", "host", "busybox", "cat", "/dev/shm/test")
 	if out != "test" {
 		c.Fatalf("Output of /dev/shm/test expected test but found: %s", out)
+	}
+
+	// Check that the mq was created
+	if _, err := os.Stat("/dev/mqueue/toto"); err != nil {
+		c.Fatalf("Failed to confirm '/dev/mqueue/toto' presence on host: %s", err.Error())
 	}
 }
 
@@ -3178,7 +3198,7 @@ func (s *DockerTrustSuite) TestTrustedRun(c *check.C) {
 func (s *DockerTrustSuite) TestUntrustedRun(c *check.C) {
 	// Windows does not support this functionality
 	testRequires(c, DaemonIsLinux)
-	repoName := fmt.Sprintf("%v/dockercli/trusted:latest", privateRegistryURL)
+	repoName := fmt.Sprintf("%v/dockercliuntrusted/runtest:latest", privateRegistryURL)
 	// tag the image and upload it to the private registry
 	dockerCmd(c, "tag", "busybox", repoName)
 	dockerCmd(c, "push", repoName)
@@ -3453,6 +3473,84 @@ func (s *DockerSuite) TestRunContainerWithCgroupParentAbsPath(c *check.C) {
 	id, err := getIDByName(name)
 	c.Assert(err, check.IsNil)
 	expectedCgroup := path.Join(cgroupParent, id)
+	found := false
+	for _, path := range cgroupPaths {
+		if strings.HasSuffix(path, expectedCgroup) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		c.Fatalf("unexpected cgroup paths. Expected at least one cgroup path to have suffix %q. Cgroup Paths: %v", expectedCgroup, cgroupPaths)
+	}
+}
+
+// TestRunInvalidCgroupParent checks that a specially-crafted cgroup parent doesn't cause Docker to crash or start modifying /.
+func (s *DockerSuite) TestRunInvalidCgroupParent(c *check.C) {
+	// Not applicable on Windows as uses Unix specific functionality
+	testRequires(c, DaemonIsLinux)
+
+	cgroupParent := "../../../../../../../../SHOULD_NOT_EXIST"
+	cleanCgroupParent := "SHOULD_NOT_EXIST"
+	name := "cgroup-invalid-test"
+
+	out, _, err := dockerCmdWithError("run", "--cgroup-parent", cgroupParent, "--name", name, "busybox", "cat", "/proc/self/cgroup")
+	if err != nil {
+		// XXX: This may include a daemon crash.
+		c.Fatalf("unexpected failure when running container with --cgroup-parent option - %s\n%v", string(out), err)
+	}
+
+	// We expect "/SHOULD_NOT_EXIST" to not exist. If not, we have a security issue.
+	if _, err := os.Stat("/SHOULD_NOT_EXIST"); err == nil || !os.IsNotExist(err) {
+		c.Fatalf("SECURITY: --cgroup-parent with ../../ relative paths cause files to be created in the host (this is bad) !!")
+	}
+
+	cgroupPaths := parseCgroupPaths(string(out))
+	if len(cgroupPaths) == 0 {
+		c.Fatalf("unexpected output - %q", string(out))
+	}
+	id, err := getIDByName(name)
+	c.Assert(err, check.IsNil)
+	expectedCgroup := path.Join(cleanCgroupParent, id)
+	found := false
+	for _, path := range cgroupPaths {
+		if strings.HasSuffix(path, expectedCgroup) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		c.Fatalf("unexpected cgroup paths. Expected at least one cgroup path to have suffix %q. Cgroup Paths: %v", expectedCgroup, cgroupPaths)
+	}
+}
+
+// TestRunInvalidCgroupParent checks that a specially-crafted cgroup parent doesn't cause Docker to crash or start modifying /.
+func (s *DockerSuite) TestRunAbsoluteInvalidCgroupParent(c *check.C) {
+	// Not applicable on Windows as uses Unix specific functionality
+	testRequires(c, DaemonIsLinux)
+
+	cgroupParent := "/../../../../../../../../SHOULD_NOT_EXIST"
+	cleanCgroupParent := "/SHOULD_NOT_EXIST"
+	name := "cgroup-absolute-invalid-test"
+
+	out, _, err := dockerCmdWithError("run", "--cgroup-parent", cgroupParent, "--name", name, "busybox", "cat", "/proc/self/cgroup")
+	if err != nil {
+		// XXX: This may include a daemon crash.
+		c.Fatalf("unexpected failure when running container with --cgroup-parent option - %s\n%v", string(out), err)
+	}
+
+	// We expect "/SHOULD_NOT_EXIST" to not exist. If not, we have a security issue.
+	if _, err := os.Stat("/SHOULD_NOT_EXIST"); err == nil || !os.IsNotExist(err) {
+		c.Fatalf("SECURITY: --cgroup-parent with /../../ garbage paths cause files to be created in the host (this is bad) !!")
+	}
+
+	cgroupPaths := parseCgroupPaths(string(out))
+	if len(cgroupPaths) == 0 {
+		c.Fatalf("unexpected output - %q", string(out))
+	}
+	id, err := getIDByName(name)
+	c.Assert(err, check.IsNil)
+	expectedCgroup := path.Join(cleanCgroupParent, id)
 	found := false
 	for _, path := range cgroupPaths {
 		if strings.HasSuffix(path, expectedCgroup) {
@@ -4057,4 +4155,43 @@ func (s *DockerSuite) TestRunNamedVolumeCopyImageData(c *check.C) {
 	dockerCmd(c, "run", "-v", "foo:/foo", testImg)
 	out, _ := dockerCmd(c, "run", "-v", "foo:/foo", "busybox", "cat", "/foo/hello")
 	c.Assert(strings.TrimSpace(out), check.Equals, "hello")
+}
+
+func (s *DockerSuite) TestRunNamedVolumeNotRemoved(c *check.C) {
+	prefix := ""
+	if daemonPlatform == "windows" {
+		prefix = "c:"
+	}
+
+	dockerCmd(c, "volume", "create", "--name", "test")
+
+	dockerCmd(c, "run", "--rm", "-v", "test:"+prefix+"/foo", "-v", prefix+"/bar", "busybox", "true")
+	dockerCmd(c, "volume", "inspect", "test")
+	out, _ := dockerCmd(c, "volume", "ls", "-q")
+	c.Assert(strings.TrimSpace(out), checker.Equals, "test")
+
+	dockerCmd(c, "run", "--name=test", "-v", "test:"+prefix+"/foo", "-v", prefix+"/bar", "busybox", "true")
+	dockerCmd(c, "rm", "-fv", "test")
+	dockerCmd(c, "volume", "inspect", "test")
+	out, _ = dockerCmd(c, "volume", "ls", "-q")
+	c.Assert(strings.TrimSpace(out), checker.Equals, "test")
+}
+
+func (s *DockerSuite) TestRunNamedVolumesFromNotRemoved(c *check.C) {
+	prefix := ""
+	if daemonPlatform == "windows" {
+		prefix = "c:"
+	}
+
+	dockerCmd(c, "volume", "create", "--name", "test")
+	dockerCmd(c, "run", "--name=parent", "-v", "test:"+prefix+"/foo", "-v", prefix+"/bar", "busybox", "true")
+	dockerCmd(c, "run", "--name=child", "--volumes-from=parent", "busybox", "true")
+
+	// Remove the parent so there are not other references to the volumes
+	dockerCmd(c, "rm", "-f", "parent")
+	// now remove the child and ensure the named volume (and only the named volume) still exists
+	dockerCmd(c, "rm", "-fv", "child")
+	dockerCmd(c, "volume", "inspect", "test")
+	out, _ := dockerCmd(c, "volume", "ls", "-q")
+	c.Assert(strings.TrimSpace(out), checker.Equals, "test")
 }

@@ -103,7 +103,7 @@ func (d *Driver) createContainer(c *execdriver.Command, hooks execdriver.Hooks) 
 	if container.Readonlyfs {
 		for i := range container.Mounts {
 			switch container.Mounts[i].Destination {
-			case "/proc", "/dev", "/dev/pts":
+			case "/proc", "/dev", "/dev/pts", "/dev/mqueue":
 				continue
 			}
 			container.Mounts[i].Flags |= syscall.MS_RDONLY
@@ -436,7 +436,6 @@ func (d *Driver) setupMounts(container *configs.Config, c *execdriver.Command) e
 				flags = syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_NODEV
 				err   error
 			)
-			fulldest := filepath.Join(c.Rootfs, m.Destination)
 			if m.Data != "" {
 				flags, data, err = mount.ParseTmpfsOptions(m.Data)
 				if err != nil {
@@ -449,8 +448,6 @@ func (d *Driver) setupMounts(container *configs.Config, c *execdriver.Command) e
 				Data:             data,
 				Device:           "tmpfs",
 				Flags:            flags,
-				PremountCmds:     genTmpfsPremountCmd(c.TmpDir, fulldest, m.Destination),
-				PostmountCmds:    genTmpfsPostmountCmd(c.TmpDir, fulldest, m.Destination),
 				PropagationFlags: []int{mountPropagationMap[volume.DefaultPropagationMode]},
 			})
 			continue

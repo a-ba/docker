@@ -15,6 +15,10 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
+var acceptedVolumeFilterTags = map[string]bool{
+	"dangling": true,
+}
+
 // iterationAction represents possible outcomes happening during the container iteration.
 type iterationAction int
 
@@ -70,6 +74,13 @@ type listContext struct {
 	filters filters.Args
 	// exitAllowed is a list of exit codes allowed to filter with
 	exitAllowed []int
+
+	// FIXME Remove this for 1.12 as --since and --before are deprecated
+	// beforeContainer is a filter to ignore containers that appear before the one given
+	beforeContainer *container.Container
+	// sinceContainer is a filter to stop the filtering when the iterator arrive to the given container
+	sinceContainer *container.Container
+
 	// beforeFilter is a filter to ignore containers that appear before the one given
 	// this is used for --filter=before= and --before=, the latter is deprecated.
 	beforeFilter *container.Container
@@ -161,6 +172,9 @@ func (daemon *Daemon) foldFilter(config *ContainersConfig) (*listContext, error)
 	}
 
 	var beforeContFilter, sinceContFilter *container.Container
+	// FIXME remove this for 1.12 as --since and --before are deprecated
+	var beforeContainer, sinceContainer *container.Container
+
 	err = psFilters.WalkValues("before", func(value string) error {
 		beforeContFilter, err = daemon.GetContainer(value)
 		return err
@@ -197,15 +211,17 @@ func (daemon *Daemon) foldFilter(config *ContainersConfig) (*listContext, error)
 		})
 	}
 
-	if config.Before != "" && beforeContFilter == nil {
-		beforeContFilter, err = daemon.GetContainer(config.Before)
+	// FIXME remove this for 1.12 as --since and --before are deprecated
+	if config.Before != "" {
+		beforeContainer, err = daemon.GetContainer(config.Before)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if config.Since != "" && sinceContFilter == nil {
-		sinceContFilter, err = daemon.GetContainer(config.Since)
+	// FIXME remove this for 1.12 as --since and --before are deprecated
+	if config.Since != "" {
+		sinceContainer, err = daemon.GetContainer(config.Since)
 		if err != nil {
 			return nil, err
 		}
@@ -216,6 +232,8 @@ func (daemon *Daemon) foldFilter(config *ContainersConfig) (*listContext, error)
 		ancestorFilter:   ancestorFilter,
 		images:           imagesFilter,
 		exitAllowed:      filtExited,
+		beforeContainer:  beforeContainer,
+		sinceContainer:   sinceContainer,
 		beforeFilter:     beforeContFilter,
 		sinceFilter:      sinceContFilter,
 		ContainersConfig: config,
@@ -227,7 +245,8 @@ func (daemon *Daemon) foldFilter(config *ContainersConfig) (*listContext, error)
 // It also decides if the iteration should be stopped or not.
 func includeContainerInList(container *container.Container, ctx *listContext) iterationAction {
 	// Do not include container if it's stopped and we're not filters
-	if !container.Running && !ctx.All && ctx.Limit <= 0 && ctx.beforeFilter == nil && ctx.sinceFilter == nil {
+	// FIXME remove the ctx.beforContainer part of the condition for 1.12 as --since and --before are deprecated
+	if !container.Running && !ctx.All && ctx.Limit <= 0 && ctx.beforeContainer == nil && ctx.sinceContainer == nil {
 		return excludeContainer
 	}
 
@@ -249,6 +268,21 @@ func includeContainerInList(container *container.Container, ctx *listContext) it
 	// Do not include container if the isolation mode doesn't match
 	if excludeContainer == excludeByIsolation(container, ctx) {
 		return excludeContainer
+	}
+
+	// FIXME remove this for 1.12 as --since and --before are deprecated
+	if ctx.beforeContainer != nil {
+		if container.ID == ctx.beforeContainer.ID {
+			ctx.beforeContainer = nil
+		}
+		return excludeContainer
+	}
+
+	// FIXME remove this for 1.12 as --since and --before are deprecated
+	if ctx.sinceContainer != nil {
+		if container.ID == ctx.sinceContainer.ID {
+			return stopIteration
+		}
 	}
 
 	// Do not include container if it's in the list before the filter container.
@@ -410,21 +444,33 @@ func (daemon *Daemon) transformContainer(container *container.Container, ctx *li
 // Volumes lists known volumes, using the filter to restrict the range
 // of volumes returned.
 func (daemon *Daemon) Volumes(filter string) ([]*types.Volume, []string, error) {
-	var volumesOut []*types.Volume
+	var (
+		volumesOut   []*types.Volume
+		danglingOnly = false
+	)
 	volFilters, err := filters.FromParam(filter)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	filterUsed := volFilters.Include("dangling") &&
-		(volFilters.ExactMatch("dangling", "true") || volFilters.ExactMatch("dangling", "1"))
+	if err := volFilters.Validate(acceptedVolumeFilterTags); err != nil {
+		return nil, nil, err
+	}
+
+	if volFilters.Include("dangling") {
+		if volFilters.ExactMatch("dangling", "true") || volFilters.ExactMatch("dangling", "1") {
+			danglingOnly = true
+		} else if !volFilters.ExactMatch("dangling", "false") && !volFilters.ExactMatch("dangling", "0") {
+			return nil, nil, fmt.Errorf("Invalid filter 'dangling=%s'", volFilters.Get("dangling"))
+		}
+	}
 
 	volumes, warnings, err := daemon.volumes.List()
 	if err != nil {
 		return nil, nil, err
 	}
-	if filterUsed {
-		volumes = daemon.volumes.FilterByUsed(volumes)
+	if volFilters.Include("dangling") {
+		volumes = daemon.volumes.FilterByUsed(volumes, !danglingOnly)
 	}
 	for _, v := range volumes {
 		volumesOut = append(volumesOut, volumeToAPIType(v))
