@@ -7,7 +7,7 @@ keywords = [" docker, logging, driver"]
 [menu.main]
 parent = "engine_admin"
 identifier = "smn_logging"
-weight=8
+weight=9
 +++
 <![end-metadata]-->
 
@@ -20,3 +20,4 @@ weight=8
 * [Journald logging driver](journald.md)
 * [Amazon CloudWatch Logs logging driver](awslogs.md)
 * [Splunk logging driver](splunk.md)
+* [ETW logging driver](etwlogs.md)

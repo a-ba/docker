@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -86,7 +87,7 @@ func (s *DockerSuite) TestAttachMultipleAndRestart(c *check.C) {
 	}
 }
 
-func (s *DockerSuite) TestAttachTtyWithoutStdin(c *check.C) {
+func (s *DockerSuite) TestAttachTTYWithoutStdin(c *check.C) {
 	testRequires(c, DaemonIsLinux)
 	out, _ := dockerCmd(c, "run", "-d", "-ti", "busybox")
 
@@ -103,7 +104,10 @@ func (s *DockerSuite) TestAttachTtyWithoutStdin(c *check.C) {
 			return
 		}
 
-		expected := "cannot enable tty mode"
+		expected := "the input device is not a TTY"
+		if runtime.GOOS == "windows" {
+			expected += ".  If you are using mintty, try prefixing the command with 'winpty'"
+		}
 		if out, _, err := runCommandWithOutput(cmd); err == nil {
 			done <- fmt.Errorf("attach should have failed")
 			return
@@ -147,8 +151,7 @@ func (s *DockerSuite) TestAttachDisconnect(c *check.C) {
 	c.Assert(stdin.Close(), check.IsNil)
 
 	// Expect container to still be running after stdin is closed
-	running, err := inspectField(id, "State.Running")
-	c.Assert(err, check.IsNil)
+	running := inspectField(c, id, "State.Running")
 	c.Assert(running, check.Equals, "true")
 }
 

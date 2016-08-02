@@ -9,7 +9,7 @@ weight=79
 +++
 <![end-metadata]-->
 
-# Migrate to Engine 1.10
+# Migrate to Engine 1.10
 
 Starting from version 1.10 of Docker Engine, we completely change the way image
 data is addressed on disk. Previously, every image and layer used a randomly
@@ -29,7 +29,7 @@ instructions that didn’t modify the filesystem.
 
 Content addressability is the foundation for the new distribution features. The
 image pull and push code has been reworked to use a download/upload manager
-concept that makes pushing and pulling images much more stable and mitigate any
+concept that makes pushing and pulling images much more stable and mitigates any
 parallel request issues. The download manager also brings retries on failed
 downloads and better prioritization for concurrent downloads.
 

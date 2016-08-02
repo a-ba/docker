@@ -19,6 +19,11 @@ type LayerUploadManager struct {
 	tm TransferManager
 }
 
+// SetConcurrency set the max concurrent uploads for each push
+func (lum *LayerUploadManager) SetConcurrency(concurrency int) {
+	lum.tm.SetConcurrency(concurrency)
+}
+
 // NewLayerUploadManager returns a new LayerUploadManager.
 func NewLayerUploadManager(concurrencyLimit int) *LayerUploadManager {
 	return &LayerUploadManager{
@@ -141,7 +146,7 @@ func (lum *LayerUploadManager) makeUploadFunc(descriptor UploadDescriptor) DoFun
 
 			selectLoop:
 				for {
-					progress.Updatef(progressOutput, descriptor.ID(), "Retrying in %d seconds", delay)
+					progress.Updatef(progressOutput, descriptor.ID(), "Retrying in %d second%s", delay, (map[bool]string{true: "s"})[delay != 1])
 					select {
 					case <-ticker.C:
 						delay--
