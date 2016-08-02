@@ -15,7 +15,7 @@ weight = 3
 
  - The Remote API has replaced `rcli`.
  - The daemon listens on `unix:///var/run/docker.sock` but you can
-   [Bind Docker to another host/port or a Unix socket](../../quickstart.md#bind-docker-to-another-host-port-or-a-unix-socket).
+   [Bind Docker to another host/port or a Unix socket](../commandline/dockerd.md#bind-docker-to-another-host-port-or-a-unix-socket).
  - The API tends to be REST, but for some complex commands, like `attach`
    or `pull`, the HTTP connection is hijacked to transport `STDOUT`,
    `STDIN` and `STDERR`.
@@ -169,6 +169,7 @@ Create a container
                "MemorySwap": 0,
                "CpuShares": 512,
                "CpusetCpus": "0,1",
+               "PidMode": "",
                "PortBindings": { "22/tcp": [{ "HostPort": "11022" }] },
                "PublishAllPorts": false,
                "Privileged": false,
@@ -184,7 +185,7 @@ Create a container
                "Devices": [],
                "Ulimits": [{}],
                "LogConfig": { "Type": "json-file", Config: {} },
-               "SecurityOpt": [""],
+               "SecurityOpt": [],
                "CgroupParent": ""
             }
         }
@@ -206,13 +207,6 @@ Json Parameters:
 -   **Domainname** - A string value containing the desired domain name to use
       for the container.
 -   **User** - A string value containing the user to use inside the container.
--   **Memory** - Memory limit in bytes.
--   **MemorySwap** - Total memory limit (memory + swap); set `-1` to enable unlimited swap.
-      You must use this with `memory` and make the swap value larger than `memory`.
--   **CpuShares** - An integer value containing the CPU Shares for container
-      (ie. the relative weight vs other containers).
--   **Cpuset** - The same as CpusetCpus, but deprecated, please don't use.
--   **CpusetCpus** - String value containing the cgroups CpusetCpus to use.
 -   **AttachStdin** - Boolean value, attaches to stdin.
 -   **AttachStdout** - Boolean value, attaches to stdout.
 -   **AttachStderr** - Boolean value, attaches to stderr.
@@ -243,6 +237,15 @@ Json Parameters:
           in the form of `container_name:alias`.
     -   **LxcConf** - LXC specific configurations. These configurations will only
           work when using the `lxc` execution driver.
+    -   **Memory** - Memory limit in bytes.
+    -   **MemorySwap** - Total memory limit (memory + swap); set `-1` to enable unlimited swap.
+          You must use this with `memory` and make the swap value larger than `memory`.
+    -   **CpuShares** - An integer value containing the CPU Shares for container
+          (ie. the relative weight vs other containers).
+    -   **CpusetCpus** - String value containing the cgroups CpusetCpus to use.
+    -   **PidMode** - Set the PID (Process) Namespace mode for the container;
+          `"container:<name|id>"`: joins another container's PID namespace
+          `"host"`: use the host's PID namespace inside the container
     -   **PortBindings** - A map of exposed container ports and the host port they
           should map to. It should be specified in the form
           `{ <port>/<protocol>: [{ "HostPort": "<port>" }] }`
@@ -270,7 +273,7 @@ Json Parameters:
             An ever increasing delay (double the previous delay, starting at 100mS)
             is added before each restart to prevent flooding the server.
     -   **NetworkMode** - Sets the networking mode for the container. Supported
-          values are: `bridge`, `host`, and `container:<name|id>`
+          values are: `bridge`, `host`, `none`, and `container:<name|id>`
     -   **Devices** - A list of devices to add to the container specified in the
           form
           `{ "PathOnHost": "/dev/deviceName", "PathInContainer": "/dev/deviceName", "CgroupPermissions": "mrw"}`
@@ -293,13 +296,15 @@ Query Parameters:
 Status Codes:
 
 -   **201** – no error
+-   **400** – bad parameter
 -   **404** – no such container
 -   **406** – impossible to attach (container not running)
+-   **409** – conflict
 -   **500** – server error
 
 ### Inspect a container
 
-`GET /containers/(id)/json`
+`GET /containers/(id or name)/json`
 
 Return low-level information on the container `id`
 
@@ -373,6 +378,7 @@ Return low-level information on the container `id`
 			"Memory": 0,
 			"MemorySwap": 0,
 			"NetworkMode": "bridge",
+			"PidMode": "",
 			"PortBindings": {},
 			"Privileged": false,
 			"ReadonlyRootfs": false,
@@ -432,7 +438,7 @@ Status Codes:
 
 ### List processes running inside a container
 
-`GET /containers/(id)/top`
+`GET /containers/(id or name)/top`
 
 List processes running inside the container `id`. On Unix systems this
 is done by running the `ps` command. This endpoint is not
@@ -496,7 +502,7 @@ Status Codes:
 
 ### Get container logs
 
-`GET /containers/(id)/logs`
+`GET /containers/(id or name)/logs`
 
 Get stdout and stderr logs from the container ``id``
 
@@ -534,7 +540,7 @@ Status Codes:
 
 ### Inspect changes on a container's filesystem
 
-`GET /containers/(id)/changes`
+`GET /containers/(id or name)/changes`
 
 Inspect changes on container `id`'s filesystem
 
@@ -576,7 +582,7 @@ Status Codes:
 
 ### Export a container
 
-`GET /containers/(id)/export`
+`GET /containers/(id or name)/export`
 
 Export the contents of container `id`
 
@@ -599,7 +605,7 @@ Status Codes:
 
 ### Get container stats based on resource usage
 
-`GET /containers/(id)/stats`
+`GET /containers/(id or name)/stats`
 
 This endpoint returns a live stream of a container's resource usage statistics.
 
@@ -687,7 +693,7 @@ Status Codes:
 
 ### Resize a container TTY
 
-`POST /containers/(id)/resize?h=<height>&w=<width>`
+`POST /containers/(id or name)/resize?h=<height>&w=<width>`
 
 Resize the TTY for container with  `id`. The container must be restarted for the resize to take effect.
 
@@ -709,7 +715,7 @@ Status Codes:
 
 ### Start a container
 
-`POST /containers/(id)/start`
+`POST /containers/(id or name)/start`
 
 Start the container `id`
 
@@ -719,7 +725,7 @@ Start the container `id`
 
 **Example request**:
 
-        POST /containers/(id)/start HTTP/1.1
+        POST /containers/e90e34656806/start HTTP/1.1
 
 **Example response**:
 
@@ -734,7 +740,7 @@ Status Codes:
 
 ### Stop a container
 
-`POST /containers/(id)/stop`
+`POST /containers/(id or name)/stop`
 
 Stop the container `id`
 
@@ -759,7 +765,7 @@ Status Codes:
 
 ### Restart a container
 
-`POST /containers/(id)/restart`
+`POST /containers/(id or name)/restart`
 
 Restart the container `id`
 
@@ -783,7 +789,7 @@ Status Codes:
 
 ### Kill a container
 
-`POST /containers/(id)/kill`
+`POST /containers/(id or name)/kill`
 
 Kill the container `id`
 
@@ -808,7 +814,7 @@ Status Codes:
 
 ### Rename a container
 
-`POST /containers/(id)/rename`
+`POST /containers/(id or name)/rename`
 
 Rename the container `id` to a `new_name`
 
@@ -833,7 +839,7 @@ Status Codes:
 
 ### Pause a container
 
-`POST /containers/(id)/pause`
+`POST /containers/(id or name)/pause`
 
 Pause the container `id`
 
@@ -853,7 +859,7 @@ Status Codes:
 
 ### Unpause a container
 
-`POST /containers/(id)/unpause`
+`POST /containers/(id or name)/unpause`
 
 Unpause the container `id`
 
@@ -873,7 +879,7 @@ Status Codes:
 
 ### Attach to a container
 
-`POST /containers/(id)/attach`
+`POST /containers/(id or name)/attach`
 
 Attach to the container `id`
 
@@ -956,7 +962,7 @@ Status Codes:
 
 ### Attach to a container (websocket)
 
-`GET /containers/(id)/attach/ws`
+`GET /containers/(id or name)/attach/ws`
 
 Attach to the container `id` via websocket
 
@@ -991,7 +997,7 @@ Status Codes:
 
 ### Wait a container
 
-`POST /containers/(id)/wait`
+`POST /containers/(id or name)/wait`
 
 Block until container `id` stops, then returns the exit code
 
@@ -1014,7 +1020,7 @@ Status Codes:
 
 ### Remove a container
 
-`DELETE /containers/(id)`
+`DELETE /containers/(id or name)`
 
 Remove the container `id` from the filesystem
 
@@ -1038,11 +1044,12 @@ Status Codes:
 -   **204** – no error
 -   **400** – bad parameter
 -   **404** – no such container
+-   **409** – conflict
 -   **500** – server error
 
 ### Copy files or folders from a container
 
-`POST /containers/(id)/copy`
+`POST /containers/(id or name)/copy`
 
 Copy files or folders of container `id`
 
@@ -1187,19 +1194,19 @@ the path to the alternate build instructions file to use.
 
 The archive may include any number of other files,
 which will be accessible in the build context (See the [*ADD build
-command*](../../reference/builder.md#dockerbuilder)).
+command*](../../reference/builder.md#add)).
 
 The build will also be canceled if the client drops the connection by quitting
 or being killed.
 
 Query Parameters:
 
--   **dockerfile** - path within the build context to the Dockerfile. This is 
+-   **dockerfile** - path within the build context to the Dockerfile. This is
         ignored if `remote` is specified and points to an individual filename.
 -   **t** – repository name (and optionally a tag) to be applied to
         the resulting image in case of success
--   **remote** – A Git repository URI or HTTP/HTTPS URI build source. If the 
-        URI specifies a filename, the file's contents are placed into a file 
+-   **remote** – A Git repository URI or HTTP/HTTPS URI build source. If the
+        URI specifies a filename, the file's contents are placed into a file
 		called `Dockerfile`.
 -   **q** – suppress verbose build output
 -   **nocache** – do not use the cache when building the image
@@ -1252,7 +1259,6 @@ Query Parameters:
         can be retrieved or `-` to read the image from the request body.
 -   **repo** – repository
 -   **tag** – tag
--   **registry** – the registry to pull from
 
     Request Headers:
 
@@ -1408,7 +1414,7 @@ Tag the image `name` into a repository
 
 **Example response**:
 
-        HTTP/1.1 201 OK
+        HTTP/1.1 201 Created
 
 Query Parameters:
 
@@ -1599,7 +1605,7 @@ Display system-wide information
             "SwapLimit": 0,
             "SystemTime": "2015-03-10T11:11:23.730591467-07:00"
         }
-        
+
 Status Codes:
 
 -   **200** – no error
@@ -1866,7 +1872,7 @@ the root that contains a list of repository and tag names mapped to layer IDs.
 
 ### Exec Create
 
-`POST /containers/(id)/exec`
+`POST /containers/(id or name)/exec`
 
 Sets up an exec instance in a running container `id`
 
@@ -1887,7 +1893,7 @@ Sets up an exec instance in a running container `id`
 
 **Example response**:
 
-        HTTP/1.1 201 OK
+        HTTP/1.1 201 Created
         Content-Type: application/json
 
         {
@@ -1929,8 +1935,8 @@ interactive session with the `exec` command.
 
 **Example response**:
 
-        HTTP/1.1 201 OK
-        Content-Type: application/json
+        HTTP/1.1 200 OK
+        Content-Type: application/vnd.docker.raw-stream
 
         {{ STREAM }}
 
@@ -1945,7 +1951,7 @@ Status Codes:
 -   **404** – no such exec instance
 
     **Stream details**:
-    Similar to the stream behavior of `POST /container/(id)/attach` API
+    Similar to the stream behavior of `POST /containers/(id or name)/attach` API
 
 ### Exec Resize
 
@@ -1961,7 +1967,7 @@ This API is valid only if `tty` was specified as part of creating and starting t
 
 **Example response**:
 
-        HTTP/1.1 201 OK
+        HTTP/1.1 201 Created
         Content-Type: text/plain
 
 Query Parameters:
@@ -2118,7 +2124,7 @@ This might change in the future.
 
 ## 3.3 CORS Requests
 
-To set cross origin requests to the remote api please give values to 
+To set cross origin requests to the remote api please give values to
 "--api-cors-header" when running docker in daemon mode. Set * will allow all,
 default or blank means CORS disabled
 

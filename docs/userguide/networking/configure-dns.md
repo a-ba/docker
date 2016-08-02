@@ -16,7 +16,7 @@ user-defined networks works differently compared to the containers connected
 to `default bridge` network.
 
 > **Note**: In order to maintain backward compatibility, the DNS configuration
-> in `default bridge` network is retained with no behaviorial change.
+> in `default bridge` network is retained with no behavioral change.
 > Please refer to the [DNS in default bridge network](default_network/configure-dns.md)
 > for more information on DNS configuration in the `default bridge` network.
 
@@ -48,13 +48,13 @@ Various container options that affect container domain name services.
   <tr>
     <td>
     <p>
-    <code>--net-alias=ALIAS</code>
+    <code>--network-alias=ALIAS</code>
     </p>
     </td>
     <td>
     <p>
      In addition to <code>--name</code> as described above, a container is discovered by one or more 
-     of its configured <code>--net-alias</code> (or <code>--alias</code> in <code>docker network connect</code> command)
+     of its configured <code>--network-alias</code> (or <code>--alias</code> in <code>docker network connect</code> command)
      within the user-defined network. The embedded DNS server maintains the mapping between
      all of the container aliases and its IP address on a specific user-defined network.
      A container can have different aliases in different networks by using the <code>--alias</code>
@@ -75,7 +75,7 @@ Various container options that affect container domain name services.
       of the container identified by <code>CONTAINER_NAME</code>. When using <code>--link</code>
       the embedded DNS will guarantee that localized lookup result only on that
       container where the <code>--link</code> is used. This lets processes inside the new container 
-      connect to container without without having to know its name or IP.
+      connect to container without having to know its name or IP.
     </p>
     </td>
   </tr>

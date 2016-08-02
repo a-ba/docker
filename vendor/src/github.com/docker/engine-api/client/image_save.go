@@ -4,20 +4,20 @@ import (
 	"io"
 	"net/url"
 
-	"github.com/docker/docker/opts"
+	"golang.org/x/net/context"
 )
 
-// ImageSave retrieves one or more images from the docker host as a io.ReadCloser.
+// ImageSave retrieves one or more images from the docker host as an io.ReadCloser.
 // It's up to the caller to store the images and close the stream.
-func (cli *Client) ImageSave(imageIDs []string, excludeIDs opts.ListOpts) (io.ReadCloser, error) {
+func (cli *Client) ImageSave(ctx context.Context, imageIDs []string, excludeIDs []string) (io.ReadCloser, error) {
 	query := url.Values{
 		"names": imageIDs,
 	}
-	for _, img := range excludeIDs.GetAll() {
+	for _, img := range excludeIDs {
 		query.Add("exclude", img)
 	}
 
-	resp, err := cli.get("/images/get", query, nil)
+	resp, err := cli.get(ctx, "/images/get", query, nil)
 	if err != nil {
 		return nil, err
 	}

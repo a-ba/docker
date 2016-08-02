@@ -10,12 +10,15 @@ parent = "smn_cli"
 
 # network inspect
 
-    Usage:  docker network inspect [OPTIONS] NETWORK [NETWORK..]
+```markdown
+Usage:  docker network inspect [OPTIONS] NETWORK [NETWORK...]
 
-    Displays detailed information on a network
+Display detailed information on one or more networks
 
-      -f, --format=       Format the output using the given go template.
-      --help             Print usage
+Options:
+  -f, --format string   Format the output using the given go template
+      --help            Print usage
+```
 
 Returns information about one or more networks. By default, this command renders all results in a JSON object. For example, if you connect two containers to the default `bridge` network:
 
@@ -28,7 +31,10 @@ bda12f8922785d1f160be70736f26c1e331ab8aaf8ed8d56728508f2e2fd4727
 ```
 
 The `network inspect` command shows the containers, by id, in its
-results. You can specify an alternate format to execute a given
+results. For networks backed by multi-host network driver, such as Overlay,
+this command also shows the container endpoints in other hosts in the
+cluster. These endpoints are represented as "ep-{endpoint-id}" in the output.
+You can specify an alternate format to execute a given
 template for each result. Go's
 [text/template](http://golang.org/pkg/text/template/) package describes all the
 details of the format.
@@ -50,6 +56,7 @@ $ sudo docker network inspect bridge
                 }
             ]
         },
+        "Internal": false,
         "Containers": {
             "bda12f8922785d1f160be70736f26c1e331ab8aaf8ed8d56728508f2e2fd4727": {
                 "Name": "container2",

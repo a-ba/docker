@@ -10,15 +10,19 @@ parent = "smn_cli"
 
 # network connect
 
-    Usage:  docker network connect [OPTIONS] NETWORK CONTAINER
+```markdown
+Usage:  docker network connect [OPTIONS] NETWORK CONTAINER
 
-    Connects a container to a network
+Connect a container to a network
 
-      --alias=[]         Add network-scoped alias for the container
-      --help             Print usage
-      --ip               IPv4 Address
-      --ip6              IPv6 Address
-      --link=[]          Add a link to another container
+Options:
+      --alias value           Add network-scoped alias for the container (default [])
+      --help                  Print usage
+      --ip string             IP Address
+      --ip6 string            IPv6 Address
+      --link value            Add link to another container (default [])
+      --link-local-ip value   Add a link-local address for the container (default [])
+```
 
 Connects a container to a network. You can connect a container by name
 or by ID. Once connected, the container can communicate with other containers in
@@ -28,10 +32,10 @@ the same network.
 $ docker network connect multi-host-network container1
 ```
 
-You can also use the `docker run --net=<network-name>` option to start a container and immediately connect it to a network.
+You can also use the `docker run --network=<network-name>` option to start a container and immediately connect it to a network.
 
 ```bash
-$ docker run -itd --net=multi-host-network busybox
+$ docker run -itd --network=multi-host-network busybox
 ```
 
 You can specify the IP address you want to be assigned to the container's interface.
@@ -40,7 +44,7 @@ You can specify the IP address you want to be assigned to the container's interf
 $ docker network connect --ip 10.10.36.122 multi-host-network container2
 ```
 
-You can use `--link` option to link another container with a prefered alias
+You can use `--link` option to link another container with a preferred alias
 
 ```bash
 $ docker network connect --link container1:c1 multi-host-network container2

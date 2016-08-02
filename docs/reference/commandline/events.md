@@ -10,22 +10,25 @@ parent = "smn_cli"
 
 # events
 
-    Usage: docker events [OPTIONS]
+```markdown
+Usage:  docker events [OPTIONS]
 
-    Get real time events from the server
+Get real time events from the server
 
-      -f, --filter=[]    Filter output based on conditions provided
-      --help             Print usage
-      --since=""         Show all events created since timestamp
-      --until=""         Stream events until this timestamp
+Options:
+  -f, --filter value   Filter output based on conditions provided (default [])
+      --help           Print usage
+      --since string   Show all events created since timestamp
+      --until string   Stream events until this timestamp
+```
 
 Docker containers report the following events:
 
-    attach, commit, copy, create, destroy, die, exec_create, exec_start, export, kill, oom, pause, rename, resize, restart, start, stop, top, unpause, update
+    attach, commit, copy, create, destroy, detach, die, exec_create, exec_detach, exec_start, export, kill, oom, pause, rename, resize, restart, start, stop, top, unpause, update
 
 Docker images report the following events:
 
-    delete, import, pull, push, tag, untag
+    delete, import, load, pull, push, save, tag, untag
 
 Docker volumes report the following events:
 
@@ -35,9 +38,13 @@ Docker networks report the following events:
 
     create, connect, disconnect, destroy
 
+Docker daemon report the following events:
+
+    reload
+
 The `--since` and `--until` parameters can be Unix timestamps, date formatted
 timestamps, or Go duration strings (e.g. `10m`, `1h30m`) computed
-relative to the client machine’s time. If you do not provide the --since option,
+relative to the client machine’s time. If you do not provide the `--since` option,
 the command returns only new and/or live events.  Supported formats for date
 formatted time stamps include RFC3339Nano, RFC3339, `2006-01-02T15:04:05`,
 `2006-01-02T15:04:05.999999999`, `2006-01-02Z07:00`, and `2006-01-02`. The local
@@ -68,9 +75,10 @@ The currently supported filters are:
 * event (`event=<event action>`)
 * image (`image=<tag or id>`)
 * label (`label=<key>` or `label=<key>=<value>`)
-* type (`type=<container or image or volume or network>`)
+* type (`type=<container or image or volume or network or daemon>`)
 * volume (`volume=<name or id>`)
 * network (`network=<name or id>`)
+* daemon (`daemon=<name or id>`)
 
 ## Examples
 

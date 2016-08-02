@@ -29,13 +29,8 @@ btrfs storage engine on both Oracle Linux 6 and 7.
 > follow the installation instructions provided in the
 > [Oracle Linux documentation](https://docs.oracle.com/en/operating-systems/?tab=2).
 >
-> The installation instructions for Oracle Linux 6 can be found in [Chapter 10 of
-> the Administrator&apos;s
-> Solutions Guide](https://docs.oracle.com/cd/E37670_01/E37355/html/ol_docker.html)
->
-> The installation instructions for Oracle Linux 7 can be found in [Chapter 29 of
-> the Administrator&apos;s
-> Guide](https://docs.oracle.com/cd/E52668_01/E54669/html/ol7-docker.html)
+> The installation instructions for Oracle Linux 6 and 7 can be found in [Chapter 2 of
+> the Docker User&apos;s Guide](https://docs.oracle.com/cd/E52668_01/E75728/html/docker_install_upgrade.html)
 
 
 1. Log into your machine as a user with `sudo` or `root` privileges.
@@ -113,15 +108,19 @@ To create the `docker` group and add your user:
 
 1. Log into Oracle Linux as a user with `sudo` privileges.
 
-2. Create the `docker` group and add your user.
+2. Create the `docker` group.
+
+        sudo groupadd docker
+
+3. Add your user to `docker` group.
 
         sudo usermod -aG docker username
 
-3. Log out and log back in.
+4. Log out and log back in.
 
     This ensures your user is running with the correct permissions.
 
-4. Verify your work by running `docker` without `sudo`.
+5. Verify your work by running `docker` without `sudo`.
 
         $ docker run hello-world
 
@@ -203,7 +202,7 @@ use the btrfs storage engine on Oracle Linux 7.
 
 If you have a current Basic or Premier Support Subscription for Oracle Linux,
 you can report any issues you have with the installation of Docker via a Service
-Request at [My Oracle Support](http://support.oracle.com).
+Request at [My Oracle Support](https://support.oracle.com).
 
 If you do not have an Oracle Linux Support Subscription, you can use the [Oracle
 Linux

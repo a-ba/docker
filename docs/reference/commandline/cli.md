@@ -14,16 +14,31 @@ weight = -2
 To list available commands, either run `docker` with no parameters
 or execute `docker help`:
 
-    $ docker
-      Usage: docker [OPTIONS] COMMAND [arg...]
-             docker daemon [ --help | ... ]
-             docker [ --help | -v | --version ]
+```bash
+$ docker
+Usage: docker [OPTIONS] COMMAND [arg...]
+       docker [ --help | -v | --version ]
 
-        -H, --host=[]: The socket(s) to talk to the Docker daemon in the format of tcp://host:port/path, unix:///path/to/socket, fd://* or fd://socketfd.
+A self-sufficient runtime for containers.
 
-      A self-sufficient runtime for Linux containers.
+Options:
 
-      ...
+  --config=~/.docker              Location of client config files
+  -D, --debug                     Enable debug mode
+  -H, --host=[]                   Daemon socket(s) to connect to
+  -h, --help                      Print usage
+  -l, --log-level=info            Set the logging level
+  --tls                           Use TLS; implied by --tlsverify
+  --tlscacert=~/.docker/ca.pem    Trust certs signed only by this CA
+  --tlscert=~/.docker/cert.pem    Path to TLS certificate file
+  --tlskey=~/.docker/key.pem      Path to TLS key file
+  --tlsverify                     Use TLS and verify the remote
+  -v, --version                   Print version information and quit
+
+Commands:
+    attach    Attach to a running container
+    # […]
+```
 
 Depending on your Docker system configuration, you may be required to preface
 each `docker` command with `sudo`. To avoid having to use `sudo` with the
@@ -67,7 +82,7 @@ variables.
 ## Configuration files
 
 By default, the Docker command line stores its configuration files in a
-directory called `.docker` within your `HOME` directory. However, you can
+directory called `.docker` within your `$HOME` directory. However, you can
 specify a different location via the `DOCKER_CONFIG` environment variable
 or the `--config` command line option. If both are specified, then the
 `--config` option overrides the `DOCKER_CONFIG` environment variable.
@@ -111,7 +126,7 @@ property. The format of the `<sequence>` is a comma-separated list of either
 a letter [a-Z], or the `ctrl-` combined with any of the following:
 
 * `a-z` (a single lowercase alpha character )
-* `@` (ampersand)
+* `@` (at sign)
 * `[` (left bracket)
 * `\\` (two backward slashes)
 *  `_` (underscore)
