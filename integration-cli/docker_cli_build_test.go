@@ -24,13 +24,13 @@ import (
 	"github.com/go-check/check"
 )
 
-func (s *DockerSuite) TestBuildTmpVolume(c *check.C) {
-	name := "testbuildtmpvolume"
+func (s *DockerSuite) TestBuildTmpVolumeRoot(c *check.C) {
+	name := "testbuildtmpvolumeroot"
 	defer deleteImages(name)
 	ctx, err := fakeContext(`FROM busybox
 ADD . /
 RUN sh /test_root
-RUN sh /tmp/test_tmp
+RUN test ! -e /tmp/test_tmp
 `,
 		map[string]string{
 			"test_root":	"touch /test_root.create_root /tmp/test_root.create_tmp",
@@ -46,15 +46,14 @@ RUN sh /tmp/test_tmp
 
 	var out  string
 	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "run", "--rm", image, "sh", "-c", `
-ls /test_* /tmp/test_*
+find /t*
 set -e -x
 [ -f /test_root ]
 [ -f /test_root.create_root ]
-[ -f /test_tmp.create_root ]
-[ ! -e /tmp/test_tmp ]
+[ ! -e /test_tmp.create_root ]
+[ -f /tmp/test_tmp ]
 [ ! -e /tmp/test_tmp.create_tmp ]
 [ ! -e /tmp/test_root.create_tmp ]
-ls -ld /tmp | grep -q '^drwxrwxrwt .* root  *root '
 `))
 
 	if err != nil {
@@ -62,11 +61,11 @@ ls -ld /tmp | grep -q '^drwxrwxrwt .* root  *root '
 	}
 }
 
-func (s *DockerSuite) TestBuildTmpVolumeBis(c *check.C) {
-	name := "testbuildtmpvolumebis"
+func (s *DockerSuite) TestBuildTmpVolumeTmp(c *check.C) {
+	name := "testbuildtmpvolumetmp"
 	defer deleteImages(name)
 	ctx, err := fakeContext(`FROM busybox
-ADD . /tmp/
+ADD . /tmp
 RUN sh /tmp/test_root
 RUN sh /tmp/tmp/test_tmp
 `,
@@ -84,7 +83,7 @@ RUN sh /tmp/tmp/test_tmp
 
 	var out  string
 	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "run", "--rm", image, "sh", "-c", `
-ls /test_* /tmp/test_* /tmp/tmp
+find /t*
 set -e -x
 [ -f /test_root.create_root ]
 [ -f /test_tmp.create_root ]

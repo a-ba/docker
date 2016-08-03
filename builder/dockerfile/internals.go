@@ -50,6 +50,7 @@ func (b *Builder) initTmpVolume() error {
 
 	// TODO: use permissions from base image
 
+	// TODO: use remapped rootUID:rootGID
 	return os.Chmod(b.tmpVolumePath, os.FileMode(0777) | os.ModeSticky)
 }
 

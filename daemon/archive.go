@@ -7,7 +7,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/docker/docker/builder"
 	"github.com/docker/docker/container"
@@ -392,33 +391,36 @@ func (daemon *Daemon) CopyOnBuild(cID string, destPath string, src builder.FileI
 		return err
 	}
 
-	tmpPath := path.Join(rootPath, "tmp")
-	_, err = os.Stat(tmpPath)
-	if err != nil {
-		err = os.Mkdir(tmpPath, 0777)
+	var relToRoot string
+	relToRoot, err = filepath.Rel(rootPath, destPath)
+	if err == nil && ((relToRoot == "tmp") || strings.HasPrefix(relToRoot, "tmp/")) {
+		// we are copying into /tmp/
+
+		// create /tmp if it does not exist already
+		tmpPath := path.Join(rootPath, "tmp")
+		_, err = os.Stat(tmpPath)
 		if err != nil {
-			return err
+			err = os.Mkdir(tmpPath, 0777)
+			if err != nil {
+				return err
+			}
+			err = os.Chown(tmpPath, rootUID, rootGID)
+			if err != nil {
+				return err
+			}
+			err = os.Chmod(tmpPath, os.FileMode(0777) | os.ModeSticky)
+			if err != nil {
+				return err
+			}
 		}
-		err = os.Chown(tmpPath, rootUID, rootGID)
-		if err != nil {
-			return err
-		}
-		err = os.Chmod(tmpPath, os.FileMode(0777) | os.ModeSticky)
-		if err != nil {
-			return err
+
+		if relToRoot == "tmp" {
+			destPath = tmpVolumePath
+		} else {
+			destPath = filepath.Join(tmpVolumePath, relToRoot[4:])
 		}
 	}
 
-	// FIXME: very very ugly
-	err = syscall.Mount(tmpVolumePath, tmpPath, "bind", syscall.MS_BIND, "")
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := syscall.Unmount(tmpPath, 0) ; err != nil {
-			logrus.Debugf("[BUILDER] failed to unmount dir: %s", err)
-		}
-	}()
 
 	uidMaps, gidMaps := daemon.GetUIDGIDMaps()
 	archiver := &archive.Archiver{
