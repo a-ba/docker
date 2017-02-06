@@ -34,6 +34,7 @@ func NewSaveCommand(dockerCli *command.DockerCli) *cobra.Command {
 	flags := cmd.Flags()
 
 	flags.StringVarP(&opts.output, "output", "o", "", "Write to a file, instead of STDOUT")
+	flags.StringSliceVarP(&opts.exclude, "exclude", "e", []string{}, "Layers not to be included in the archive (or 'all' to exclude all layers, thus save only the metadata)")
 
 	return cmd
 }
