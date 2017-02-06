@@ -1,16 +1,7 @@
-// +build experimental
-
 package daemon
 
-import (
-	"github.com/docker/docker/plugin"
-	"github.com/docker/engine-api/types/container"
-)
+import "github.com/docker/docker/api/types/container"
 
 func (daemon *Daemon) verifyExperimentalContainerSettings(hostConfig *container.HostConfig, config *container.Config) ([]string, error) {
 	return nil, nil
-}
-
-func pluginShutdown() {
-	plugin.GetManager().Shutdown()
 }

@@ -10,70 +10,96 @@ var (
 	left = [...]string{
 		"admiring",
 		"adoring",
+		"affectionate",
 		"agitated",
 		"amazing",
 		"angry",
 		"awesome",
-		"backstabbing",
-		"berserk",
-		"big",
+		"blissful",
 		"boring",
+		"brave",
 		"clever",
 		"cocky",
 		"compassionate",
+		"competent",
 		"condescending",
+		"confident",
 		"cranky",
-		"desperate",
+		"dazzling",
 		"determined",
 		"distracted",
 		"dreamy",
-		"drunk",
+		"eager",
 		"ecstatic",
+		"elastic",
 		"elated",
 		"elegant",
-		"evil",
+		"eloquent",
+		"epic",
 		"fervent",
+		"festive",
+		"flamboyant",
 		"focused",
-		"furious",
-		"gigantic",
-		"gloomy",
+		"friendly",
+		"frosty",
+		"gallant",
+		"gifted",
 		"goofy",
-		"grave",
+		"gracious",
 		"happy",
-		"high",
+		"hardcore",
+		"heuristic",
 		"hopeful",
 		"hungry",
 		"infallible",
+		"inspiring",
 		"jolly",
 		"jovial",
+		"keen",
 		"kickass",
-		"lonely",
+		"kind",
+		"laughing",
 		"loving",
-		"mad",
+		"lucid",
+		"mystifying",
 		"modest",
+		"musing",
 		"naughty",
-		"nauseous",
+		"nervous",
+		"nifty",
 		"nostalgic",
+		"objective",
+		"optimistic",
 		"peaceful",
 		"pedantic",
 		"pensive",
-		"prickly",
+		"practical",
+		"priceless",
+		"quirky",
+		"quizzical",
+		"relaxed",
 		"reverent",
 		"romantic",
 		"sad",
 		"serene",
 		"sharp",
-		"sick",
 		"silly",
 		"sleepy",
-		"small",
 		"stoic",
 		"stupefied",
 		"suspicious",
 		"tender",
 		"thirsty",
-		"tiny",
 		"trusting",
+		"unruffled",
+		"upbeat",
+		"vibrant",
+		"vigilant",
+		"wizardly",
+		"wonderful",
+		"xenodochial",
+		"youthful",
+		"zealous",
 		"zen",
 	}
 
@@ -118,6 +144,9 @@ var (
 
 		// Laura Bassi, the world's first female professor https://en.wikipedia.org/wiki/Laura_Bassi
 		"bassi",
+
+		// Hugh Beaver, British engineer, founder of the Guinness Book of World Records https://en.wikipedia.org/wiki/Hugh_Beaver
+		"beaver",
 
 		// Alexander Graham Bell - an eminent Scottish-born scientist, inventor, engineer and innovator who is credited with inventing the first practical telephone - https://en.wikipedia.org/wiki/Alexander_Graham_Bell
 		"bell",
@@ -164,6 +193,9 @@ var (
 		//Claude Shannon - The father of information theory and founder of digital circuit design theory. (https://en.wikipedia.org/wiki/Claude_Shannon)
 		"shannon",
 
+		// Joan Clarke - Bletchley Park code breaker during the Second World War who pioneered techniques that remained top secret for decades. Also an accomplished numismatist https://en.wikipedia.org/wiki/Joan_Clarke
+		"clarke",
+
 		// Jane Colden - American botanist widely considered the first female American botanist - https://en.wikipedia.org/wiki/Jane_Colden
 		"colden",
 
@@ -195,6 +227,9 @@ var (
 
 		// Annie Easley - She was a leading member of the team which developed software for the Centaur rocket stage and one of the first African-Americans in her field. https://en.wikipedia.org/wiki/Annie_Easley
 		"easley",
+
+		// Thomas Alva Edison, prolific inventor https://en.wikipedia.org/wiki/Thomas_Edison
+		"edison",
 
 		// Albert Einstein invented the general theory of relativity. https://en.wikipedia.org/wiki/Albert_Einstein
 		"einstein",
@@ -243,6 +278,9 @@ var (
 
 		// Jane Goodall - British primatologist, ethologist, and anthropologist who is considered to be the world's foremost expert on chimpanzees - https://en.wikipedia.org/wiki/Jane_Goodall
 		"goodall",
+
+		// Lois Haibt - American computer scientist, part of the team at IBM that developed FORTRAN - https://en.wikipedia.org/wiki/Lois_Haibt
+		"haibt",
 
 		// Margaret Hamilton - Director of the Software Engineering Division of the MIT Instrumentation Laboratory, which developed on-board flight software for the Apollo space program. https://en.wikipedia.org/wiki/Margaret_Hamilton_(scientist)
 		"hamilton",
@@ -325,6 +363,9 @@ var (
 		// Henrietta Swan Leavitt - she was an American astronomer who discovered the relation between the luminosity and the period of Cepheid variable stars. https://en.wikipedia.org/wiki/Henrietta_Swan_Leavitt
 		"leavitt",
 
+		//Daniel Lewin -  Mathematician, Akamai co-founder, soldier, 9/11 victim-- Developed optimization techniques for routing traffic on the internet. Died attempting to stop the 9-11 hijackers. https://en.wikipedia.org/wiki/Daniel_Lewin
+		"lewin",
+
 		// Ruth Lichterman - one of the original programmers of the ENIAC. https://en.wikipedia.org/wiki/ENIAC - https://en.wikipedia.org/wiki/Ruth_Teitelbaum
 		"lichterman",
 
@@ -378,6 +419,9 @@ var (
 
 		// Isaac Newton invented classic mechanics and modern optics. https://en.wikipedia.org/wiki/Isaac_Newton
 		"newton",
+
+		// Florence Nightingale, more prominently known as a nurse, was also the first female member of the Royal Statistical Society and a pioneer in statistical graphics https://en.wikipedia.org/wiki/Florence_Nightingale#Statistics_and_sanitary_reform
+		"nightingale",
 
 		// Alfred Nobel - a Swedish chemist, engineer, innovator, and armaments manufacturer (inventor of dynamite) - https://en.wikipedia.org/wiki/Alfred_Nobel
 		"nobel",
@@ -501,6 +545,9 @@ var (
 
 		// Marlyn Wescoff - one of the original programmers of the ENIAC. https://en.wikipedia.org/wiki/ENIAC - https://en.wikipedia.org/wiki/Marlyn_Meltzer
 		"wescoff",
+
+		// Andrew Wiles - Notable British mathematician who proved the enigmatic Fermat's Last Theorem - https://en.wikipedia.org/wiki/Andrew_Wiles
+		"wiles",
 
 		// Roberta Williams, did pioneering work in graphical adventure games for personal computers, particularly the King's Quest series. https://en.wikipedia.org/wiki/Roberta_Williams
 		"williams",
